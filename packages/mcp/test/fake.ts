@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 
 export const goodKey = "df_key_test_fake_0000000000001234";
 export const inactiveKey = "df_key_test_inactive_00000005678";
+export const skill = "---\nname: datafuel\n---\n\nUse DataFuel.\n";
 
 export interface Fake {
   url: string;
@@ -37,6 +38,7 @@ export async function fake(): Promise<Fake> {
   const seen: IncomingHttpHeaders[] = [];
   const http = createServer((req, res) => {
     seen.push(req.headers);
+    if (req.url === "/skill.md") return void res.end(skill);
     const key = req.headers["x-api-key"];
     if (key === inactiveKey) return send(res, 403, { code: "FORBIDDEN", message: "forbidden" });
     if (key !== goodKey) return send(res, 401, { code: "INVALID_API_KEY", message: "invalid" });

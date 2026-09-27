@@ -26,6 +26,13 @@ describe("parse", () => {
     expect(parse(["init", "--project"], {}).project).toBe(true);
   });
 
+  it("reads the skill switch", () => {
+    expect(parse(["init"], {}).skill).toBeUndefined();
+    expect(parse(["init", "--skill"], {}).skill).toBe(true);
+    expect(parse(["init", "--no-skill"], {}).skill).toBe(false);
+    expect(() => parse(["init", "--skill", "--no-skill"], {})).toThrow(/conflict/);
+  });
+
   it("rejects --project for clients without project scope", () => {
     expect(() =>
       parse(["init", "--project", "--client", "cursor,windsurf,claude-desktop"], {}),

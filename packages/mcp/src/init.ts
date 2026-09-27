@@ -1,11 +1,13 @@
 import * as p from "@clack/prompts";
 import { checkKey, mcpUrl, reason } from "./api.js";
 import type { Opts } from "./cli.js";
+import { claudeCode } from "./clients/claude-code.js";
 import { clients } from "./clients/index.js";
 import type { Client, Ctx } from "./clients/types.js";
 import { shown } from "./fsutil.js";
 import { mask } from "./mask.js";
 import { gitRoot, ignore, tracked } from "./project.js";
+import { installSkill } from "./skill.js";
 import { row } from "./ui.js";
 
 function answer<T>(v: T): Exclude<T, symbol> {
@@ -86,6 +88,13 @@ async function askClients(opts: Opts, interactive: boolean): Promise<Client[]> {
   return offered.filter((c) => ids.includes(c.id));
 }
 
+async function wantSkill(opts: Opts, chosen: Client[], interactive: boolean): Promise<boolean> {
+  if (opts.skill !== undefined) return opts.skill;
+  if (opts.project || !chosen.includes(claudeCode)) return false;
+  if (!interactive) return true;
+  return answer(await p.confirm({ message: "Also install the DataFuel skill for Claude Code?" }));
+}
+
 async function installProject(c: Client, ctx: Ctx, dir: string): Promise<void> {
   const file = c.path(dir);
   const root = c.keyOnDisk ? await gitRoot(dir) : undefined;
@@ -105,6 +114,7 @@ export async function init(opts: Opts): Promise<boolean> {
 
   const key = await askKey(opts, interactive);
   const chosen = await askClients(opts, interactive);
+  const skill = await wantSkill(opts, chosen, interactive);
   const dir = opts.project ? process.cwd() : undefined;
   const ctx = { url: opts.url, key };
 
@@ -116,6 +126,15 @@ export async function init(opts: Opts): Promise<boolean> {
     } catch (err) {
       ok = false;
       p.log.error(row(c.label, reason(err)));
+    }
+  }
+  if (skill) {
+    try {
+      const where = await installSkill(opts.url);
+      p.log.success(row("Skill", dir ? `${where} (user scope)` : where));
+    } catch (err) {
+      ok = false;
+      p.log.error(row("Skill", reason(err)));
     }
   }
 

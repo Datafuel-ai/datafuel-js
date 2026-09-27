@@ -9,7 +9,7 @@ export type Client = {
   keyOnDisk: boolean;
   path(dir?: string): string;
   detect(): Promise<boolean>;
-  configured(dir?: string): Promise<Found | undefined>;
+  configured(dir?: string): Promise<Found[]>;
   install(ctx: Ctx, dir?: string): Promise<string>;
   remove(dir?: string): Promise<string | undefined>;
   restart: string;

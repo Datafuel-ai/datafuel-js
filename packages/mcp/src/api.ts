@@ -7,7 +7,7 @@ export const clientTag = `mcp-cli/${version}`;
 
 export const mcpUrl = (base: string) => new URL("/mcp", base).toString();
 
-const tagged: typeof fetch = (input, init) => {
+export const tagged: typeof fetch = (input, init) => {
   const headers = new Headers(init?.headers);
   headers.set("X-DataFuel-Client", clientTag);
   return fetch(input, { ...init, headers });

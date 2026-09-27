@@ -6,8 +6,7 @@ import { shown } from "./fsutil.js";
 import { mask } from "./mask.js";
 import { row } from "./ui.js";
 
-async function endpoint(opts: Opts): Promise<boolean> {
-  const key = opts.apiKey ?? process.env.DATAFUEL_API_KEY?.trim();
+async function endpoint(opts: Opts, key: string | undefined): Promise<boolean> {
   if (!key) {
     p.log.warn(row("API key", "not set, pass --api-key or set DATAFUEL_API_KEY to check it"));
     return false;
@@ -38,14 +37,21 @@ async function endpoint(opts: Opts): Promise<boolean> {
 
 export async function doctor(opts: Opts): Promise<boolean> {
   p.intro(`DataFuel MCP doctor (v${version}, node ${process.versions.node})`);
-  let ok = await endpoint(opts);
+  const key = opts.apiKey ?? (process.env.DATAFUEL_API_KEY?.trim() || undefined);
+  let ok = await endpoint(opts, key);
   const dir = opts.project ? process.cwd() : undefined;
 
   for (const c of opts.clients ?? clients.filter((c) => c.project || !dir)) {
     try {
-      const found = await c.configured(dir);
-      if (found) p.log.success(row(c.label, `configured (${shown(found.path, dir)})`));
-      else if (!dir && (await c.detect())) p.log.warn(row(c.label, "detected, not configured"));
+      const all = await c.configured(dir);
+      const stale = all.find((f) => key && f.key !== undefined && f.key !== key);
+      if (stale) {
+        ok = false;
+        p.log.warn(row(c.label, `stale key (${shown(stale.path, dir)}), run init again`));
+      } else if (all.length) {
+        const where = all.map((f) => shown(f.path, dir)).join(", ");
+        p.log.success(row(c.label, `configured (${where})`));
+      } else if (!dir && (await c.detect())) p.log.warn(row(c.label, "detected, not configured"));
       else p.log.info(row(c.label, dir ? "not configured" : "not found"));
     } catch (err) {
       ok = false;

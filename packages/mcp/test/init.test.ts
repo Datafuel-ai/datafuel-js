@@ -52,16 +52,18 @@ const text = () => out.join("");
 const inDir = (dir: string) => vi.spyOn(process, "cwd").mockReturnValue(dir);
 
 describe("init -y", () => {
-  it("installs every client at user scope, and remove leaves no key behind", async () => {
+  it("installs every client and the skill, and remove leaves no key behind", async () => {
     const all = "claude-code,cursor,vscode,windsurf,claude-desktop,codex,gemini";
     expect(await init(args("init", "-y", "--api-key", goodKey, "--client", all))).toBe(true);
     expect(await init(args("init", "-y", "--api-key", goodKey, "--client", all))).toBe(true);
     expect(text()).toContain("~/.cursor/mcp.json");
+    expect(text()).toMatch(/Skill\s+~\/\.claude\/skills\/datafuel\/SKILL\.md\n/);
     expect(text()).not.toContain(goodKey);
     expect((await keyFiles(home)).length).toBe(6);
 
     expect(await remove(args("remove"))).toBe(true);
     expect(await keyFiles(home)).toEqual([]);
+    expect(text()).toMatch(/Skill\s+removed ~\/\.claude\/skills\/datafuel/);
   });
 
   it("writes project files and lists the ones holding the key in .gitignore", async () => {
@@ -79,6 +81,7 @@ describe("init -y", () => {
     expect(text()).toMatch(/Cursor\s+ignored by \.gitignore/);
     expect(text()).not.toMatch(/VS Code\s+ignored/);
     expect((await keyFiles(root)).length).toBe(4);
+    expect(text()).not.toContain("SKILL.md");
 
     expect(await remove(args("remove", "--project"))).toBe(true);
     expect(await keyFiles(home)).toEqual([]);
@@ -117,6 +120,17 @@ describe("init -y", () => {
     expect(await init(opts)).toBe(true);
     expect(text()).toMatch(/Cursor\s+not a git repository, keep it out of version control/);
     expect(await remove(args("remove", "--project"))).toBe(true);
+
+    expect(
+      await init(
+        args("init", "-y", "--project", "--skill", "--api-key", goodKey, "--client", "cursor"),
+      ),
+    ).toBe(true);
+    expect(text()).toMatch(/Skill\s+~\/\.claude\/skills\/datafuel\/SKILL\.md \(user scope\)/);
+    expect(await remove(args("remove", "--project"))).toBe(true);
+    expect(text()).not.toMatch(/Skill\s+removed/);
+    expect(await remove(args("remove", "--client", "claude-code"))).toBe(true);
+    expect(text()).toMatch(/Skill\s+removed/);
   });
 
   it("fails without a key instead of prompting", async () => {

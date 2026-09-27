@@ -66,11 +66,12 @@ export function jsonClient({ root, entry, key, paths, ...rest }: Spec): Client {
     keyOnDisk: true,
     path: (dir) => paths(dir)[0]!,
     async configured(dir) {
+      const all: Found[] = [];
       for (const p of paths(dir)) {
         const e = getServer(await readJson(p, dir), root);
-        if (e) return found(p, key(e));
+        if (e) all.push(found(p, key(e)));
       }
-      return undefined;
+      return all;
     },
     async install(ctx, dir) {
       const [p, ...others] = paths(dir);

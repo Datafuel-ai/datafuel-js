@@ -60,7 +60,7 @@ export const vscode: Client = {
   path,
   detect: async () => (await onPath("code")) || (await exists(dirname(path()))),
   configured: async (dir) =>
-    getServer(await readJson(path(dir), dir), "servers") && found(path(dir), undefined),
+    getServer(await readJson(path(dir), dir), "servers") ? [found(path(dir), undefined)] : [],
   install: async ({ url }, dir) => {
     try {
       return `${await update(path(dir), "servers", (doc) => merge(doc, url), dir)}, asks for the key on first start`;

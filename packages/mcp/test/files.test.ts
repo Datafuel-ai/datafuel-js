@@ -127,10 +127,12 @@ describe.each(clients.map((c) => [c.id, c] as const))("%s on disk", (_, c) => {
     await mkdir(dirname(p), { recursive: true });
     await writeFile(p, seed(c));
 
-    expect(await c.configured()).toBeUndefined();
+    expect(await c.configured()).toEqual([]);
     await c.install(ctx);
     await c.install(ctx);
-    expect(await c.configured()).toEqual({ path: p, key: c.id === "vscode" ? undefined : ctx.key });
+    expect(await c.configured()).toEqual([
+      { path: p, key: c.id === "vscode" ? undefined : ctx.key },
+    ]);
     expect(await mode(p)).toBe(0o600);
 
     const d = await doc(p);
@@ -140,7 +142,7 @@ describe.each(clients.map((c) => [c.id, c] as const))("%s on disk", (_, c) => {
     if (c.id === "codex") expect(await readFile(p, "utf8")).toContain('url = "x" # theirs');
 
     expect(await c.remove()).toBeTruthy();
-    expect(await c.configured()).toBeUndefined();
+    expect(await c.configured()).toEqual([]);
     expect(await c.remove()).toBeUndefined();
     if (c.id === "codex") expect(await readFile(p, "utf8")).toBe(seed(c));
   });
@@ -185,8 +187,8 @@ describe.each(clients.map((c) => [c.id, c] as const))("%s on disk", (_, c) => {
     const p = c.path(dir);
     expect(p.startsWith(join(dir, "."))).toBe(true);
     expect((await c.install(ctx, dir)).startsWith(relative(dir, p))).toBe(true);
-    expect(await c.configured(dir)).toMatchObject({ path: p });
-    expect(await c.configured()).toBeUndefined();
+    expect(await c.configured(dir)).toMatchObject([{ path: p }]);
+    expect(await c.configured()).toEqual([]);
     expect(await mode(p)).toBe(0o600);
     expect(await c.remove(dir)).toBeTruthy();
     expect(await filesWith(home, ctx.key)).toEqual([]);
@@ -208,7 +210,7 @@ it("windsurf writes url to the Devin config, serverUrl to the legacy one, remove
   await windsurf.install(ctx);
   expect(await filesWith(dirname(devin), ctx.key)).toEqual([devin]);
   expect(Object.keys((await server(devin))!)).toEqual(["url", "headers"]);
-  expect(await windsurf.configured()).toEqual({ path: devin, key: ctx.key });
+  expect(await windsurf.configured()).toEqual([{ path: devin, key: ctx.key }]);
 
   expect(await server(legacy)).toBeUndefined();
 
@@ -232,7 +234,7 @@ it("windsurf moves the entry to the Devin config and leaves no old key behind", 
   );
   expect(await json(legacy)).toEqual({ mcpServers: { other: theirs } });
   expect(await filesWith(home, old.key)).toEqual([]);
-  expect(await windsurf.configured()).toEqual({ path: devin, key: ctx.key });
+  expect(await windsurf.configured()).toEqual([{ path: devin, key: ctx.key }]);
 
   await windsurf.remove();
   await rm(legacy);

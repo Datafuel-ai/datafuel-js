@@ -155,7 +155,7 @@ export const codex: Client = {
   configured: async (dir) => {
     const e = await read(path(dir), dir);
     const key = isObject(e?.http_headers) ? e.http_headers["X-API-Key"] : undefined;
-    return e && found(path(dir), key);
+    return e ? [found(path(dir), key)] : [];
   },
   install: async (ctx, dir) => {
     try {

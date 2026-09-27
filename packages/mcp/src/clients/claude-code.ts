@@ -71,7 +71,7 @@ export const claudeCode: Client = {
   detect: async () => (await onPath("claude")) || (await exists(path())),
   configured: async (dir) => {
     const e = getServer(await readJson(path(dir), dir), "mcpServers");
-    return e && found(path(dir), header(e));
+    return e ? [found(path(dir), header(e))] : [];
   },
   install,
   remove,

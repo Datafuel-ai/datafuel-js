@@ -11,11 +11,12 @@ export type Opts = {
   apiKey: string | undefined;
   clients: Client[] | undefined;
   project: boolean;
+  skill: boolean | undefined;
   yes: boolean;
 };
 
 export const usage = `Usage:
-  npx -y @datafuel/mcp init   [--api-key KEY] [--client a,b] [--project] [-y]
+  npx -y @datafuel/mcp init   [--api-key KEY] [--client a,b] [--project] [--skill|--no-skill] [-y]
   npx -y @datafuel/mcp remove [--client a,b] [--project]
   npx -y @datafuel/mcp doctor [--api-key KEY] [--client a,b] [--project]
   npx -y @datafuel/mcp            stdio proxy to the DataFuel MCP server, reads DATAFUEL_API_KEY
@@ -36,6 +37,8 @@ export function parse(argv: string[], env: NodeJS.ProcessEnv = process.env): Opt
       "api-key": { type: "string" },
       client: { type: "string" },
       project: { type: "boolean", default: false },
+      skill: { type: "boolean" },
+      "no-skill": { type: "boolean" },
       yes: { type: "boolean", short: "y", default: false },
       url: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
@@ -54,6 +57,7 @@ export function parse(argv: string[], env: NodeJS.ProcessEnv = process.env): Opt
       : ((cmd as Command | undefined) ?? "proxy");
   const url = values.url ?? env.DATAFUEL_URL ?? defaultUrl;
   if (!/^https?:\/\//.test(url)) throw new Error(`invalid --url: ${url}`);
+  if (values.skill && values["no-skill"]) throw new Error("--skill and --no-skill conflict");
 
   const chosen = values.client === undefined ? undefined : pick(values.client);
   const userOnly = chosen?.filter((c) => !c.project) ?? [];
@@ -66,6 +70,7 @@ export function parse(argv: string[], env: NodeJS.ProcessEnv = process.env): Opt
     apiKey: values["api-key"]?.trim() || undefined,
     clients: chosen,
     project: values.project,
+    skill: values.skill ? true : values["no-skill"] ? false : undefined,
     yes: values.yes,
   };
 }
