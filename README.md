@@ -29,7 +29,6 @@ Push a tag from a commit on `main`; `.github/workflows/release.yml` checks and p
 | `mcp-v<version>` | `@datafuel/mcp` |
 
 - The tag version must match `version` in that package's `package.json`.
-- Release the SDK first: an `mcp-v*` tag fails unless a published `@datafuel/sdk` satisfies the mcp dependency range.
 - A tag on a commit that is not on `main` fails. A version already on npm is skipped, so re-running is safe.
 - A prerelease version (`1.2.0-rc.1`) is published under the `next` dist-tag.
 
