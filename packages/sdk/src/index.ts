@@ -2,7 +2,7 @@
  * TypeScript client for the DataFuel scraping API.
  *
  * ```ts
- * import { DataFuel } from "datafuel";
+ * import { DataFuel } from "@datafuel/sdk";
  *
  * const df = new DataFuel();                      // reads DATAFUEL_API_KEY
  * console.log(await df.markdown("https://example.com"));
