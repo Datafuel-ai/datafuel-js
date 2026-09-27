@@ -35,16 +35,14 @@ export async function readJson(path: string): Promise<Doc | undefined> {
   if (!text.trim()) return undefined;
 
   let doc: unknown;
+  let bad: string | undefined;
   try {
     doc = JSON.parse(text);
   } catch (err) {
-    throw new Error(
-      `${tilde(path)} is not valid JSON, left untouched (${(err as Error).message})`,
-      {
-        cause: err,
-      },
-    );
+    bad = /at position \d+/.exec((err as Error).message)?.[0] ?? "";
   }
+  if (bad !== undefined)
+    throw new Error(`${tilde(path)} is not valid JSON${bad && ` (${bad})`}, left untouched`);
   if (!isObject(doc)) throw new Error(`${tilde(path)} is not a JSON object, left untouched`);
   return doc;
 }

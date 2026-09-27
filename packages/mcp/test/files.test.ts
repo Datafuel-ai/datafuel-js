@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { reason } from "../src/api.js";
 import { clients } from "../src/clients/index.js";
 import { readJson, writeJson } from "../src/fsutil.js";
 
@@ -55,6 +56,14 @@ describe("fsutil", () => {
     await expect(readJson(join(home, "bad.json"))).rejects.toThrow(/not valid JSON/);
     await writeFile(join(home, "arr.json"), "[]");
     await expect(readJson(join(home, "arr.json"))).rejects.toThrow(/not a JSON object/);
+  });
+
+  it("does not echo file content in parse errors", async () => {
+    await writeFile(join(home, "leak.json"), `{"k": ${ctx.key}}`);
+    const err = await readJson(join(home, "leak.json")).catch((e: unknown) => e as Error);
+    expect(reason(err)).toMatch(/not valid JSON/);
+    expect(reason(err)).not.toContain("df_key_");
+    await rm(join(home, "leak.json"));
   });
 
   it("creates new files 600 without a backup", async () => {
