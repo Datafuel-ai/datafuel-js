@@ -1,7 +1,7 @@
 {
   "name": "@datafuel/mcp",
   "version": "0.1.0",
-  "description": "Set up the DataFuel MCP server in Claude Code, Cursor, VS Code and Claude Desktop",
+  "description": "Set up the DataFuel MCP server in Claude Code, Cursor, VS Code, Windsurf, Claude Desktop, Codex and Gemini CLI",
   "license": "MIT",
   "homepage": "https://datafuel.ai",
   "type": "module",
@@ -26,7 +26,10 @@
     "mcp",
     "scraping",
     "claude",
-    "cursor"
+    "cursor",
+    "windsurf",
+    "codex",
+    "gemini"
   ],
   "dependencies": {
     "@clack/prompts": "^0.11.0",

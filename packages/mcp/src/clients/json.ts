@@ -69,8 +69,14 @@ export function jsonClient({ root, entry, key, paths, ...rest }: Spec): Client {
       return undefined;
     },
     async install(ctx) {
-      const p = paths()[0]!;
-      return (await update(p, root, (doc) => setServer(doc, root, entry(ctx, p))))!;
+      const [p, ...others] = paths();
+      const where = (await update(p!, root, (doc) => setServer(doc, root, entry(ctx, p!))))!;
+      const moved: string[] = [];
+      for (const o of others) {
+        const from = await update(o, root, (doc) => unsetServer(doc, root));
+        if (from) moved.push(from);
+      }
+      return moved.length ? `${where}, removed from ${moved.join(", ")}` : where;
     },
     async remove() {
       const done: string[] = [];
