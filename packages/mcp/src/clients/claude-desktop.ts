@@ -25,6 +25,7 @@ function path(): string {
 export const claudeDesktop = jsonClient({
   id: "claude-desktop",
   label: "Claude Desktop",
+  project: false,
   root: "mcpServers",
   entry,
   key: (e) => (isObject(e.env) ? e.env.DATAFUEL_API_KEY : undefined),

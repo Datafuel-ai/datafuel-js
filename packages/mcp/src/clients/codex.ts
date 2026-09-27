@@ -10,7 +10,7 @@ import {
   onPath,
   readText,
   saved,
-  tilde,
+  shown,
   writeText,
 } from "../fsutil.js";
 import { found, name } from "./json.js";
@@ -111,29 +111,35 @@ export function unmerge(text: string | undefined): string | undefined {
 }
 
 const home = () => process.env.CODEX_HOME || join(homedir(), ".codex");
-const path = () => join(home(), "config.toml");
+const path = (dir?: string) => join(dir ? join(dir, ".codex") : home(), "config.toml");
 
-async function read(file: string): Promise<Doc | undefined> {
+async function read(file: string, dir?: string): Promise<Doc | undefined> {
   try {
     return getServer(load(await readText(file)));
   } catch (err) {
-    throw new Error(`${tilde(file)} ${(err as Error).message}, left untouched`, { cause: err });
+    throw new Error(`${shown(file, dir)} ${(err as Error).message}, left untouched`, {
+      cause: err,
+    });
   }
 }
 
 async function update(
   file: string,
   next: (text: string | undefined) => string | undefined,
+  dir?: string,
 ): Promise<string | undefined> {
   const prev = await readText(file);
   let text: string | undefined;
   try {
     text = next(prev);
   } catch (err) {
-    throw new Error(`${tilde(file)} ${(err as Error).message}, left untouched`, { cause: err });
+    throw new Error(`${shown(file, dir)} ${(err as Error).message}, left untouched`, {
+      cause: err,
+    });
   }
   if (text === undefined) return undefined;
-  return saved(file, await writeText(file, text, prev !== undefined && !(await read(file))));
+  const keep = prev !== undefined && !(await read(file, dir));
+  return saved(file, await writeText(file, text, keep), dir);
 }
 
 const snippet = (url: string) =>
@@ -142,15 +148,19 @@ const snippet = (url: string) =>
 export const codex: Client = {
   id: "codex",
   label: "Codex CLI",
+  project: true,
+  keyOnDisk: true,
   path,
   detect: async () => (await onPath("codex")) || (await exists(home())),
-  configured: async () => {
-    const e = await read(path());
-    return e && found(path(), isObject(e.http_headers) ? e.http_headers["X-API-Key"] : undefined);
+  configured: async (dir) => {
+    const e = await read(path(dir), dir);
+    const key = isObject(e?.http_headers) ? e.http_headers["X-API-Key"] : undefined;
+    return e && found(path(dir), key);
   },
-  install: async (ctx) => {
+  install: async (ctx, dir) => {
     try {
-      return (await update(path(), (text) => merge(text, ctx)))!;
+      const where = (await update(path(dir), (text) => merge(text, ctx), dir))!;
+      return dir ? `${where}, the project must be trusted in Codex` : where;
     } catch (err) {
       throw new Error(
         `${reason(err)}\nAdd this to it by hand and export DATAFUEL_API_KEY:\n${snippet(ctx.url)}`,
@@ -158,6 +168,6 @@ export const codex: Client = {
       );
     }
   },
-  remove: () => update(path(), unmerge),
+  remove: (dir) => update(path(dir), unmerge, dir),
   restart: "Codex",
 };

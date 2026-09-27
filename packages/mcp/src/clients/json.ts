@@ -1,4 +1,4 @@
-import { type Doc, isObject, readJson, saved, tilde, writeJson } from "../fsutil.js";
+import { type Doc, isObject, readJson, saved, shown, writeJson } from "../fsutil.js";
 import type { Client, Ctx, Found } from "./types.js";
 
 export const name = "datafuel";
@@ -31,16 +31,19 @@ export async function update(
   path: string,
   root: string,
   next: (doc: Doc | undefined) => Doc | undefined,
+  dir?: string,
 ): Promise<string | undefined> {
-  const prev = await readJson(path);
+  const prev = await readJson(path, dir);
   let doc: Doc | undefined;
   try {
     doc = next(prev);
   } catch (err) {
-    throw new Error(`${tilde(path)}: ${(err as Error).message}, left untouched`, { cause: err });
+    throw new Error(`${shown(path, dir)}: ${(err as Error).message}, left untouched`, {
+      cause: err,
+    });
   }
   if (!doc) return undefined;
-  return saved(path, await writeJson(path, doc, !!prev && !getServer(prev, root)));
+  return saved(path, await writeJson(path, doc, !!prev && !getServer(prev, root)), dir);
 }
 
 export const found = (path: string, key: unknown): Found => ({
@@ -50,38 +53,40 @@ export const found = (path: string, key: unknown): Found => ({
 
 export const header = (e: Doc) => (isObject(e.headers) ? e.headers["X-API-Key"] : undefined);
 
-type Spec = Pick<Client, "id" | "label" | "detect" | "restart"> & {
+type Spec = Pick<Client, "id" | "label" | "project" | "detect" | "restart"> & {
   root: string;
   entry: (ctx: Ctx, path: string) => Doc;
   key: (entry: Doc) => unknown;
-  paths: () => string[];
+  paths: (dir?: string) => string[];
 };
 
 export function jsonClient({ root, entry, key, paths, ...rest }: Spec): Client {
   return {
     ...rest,
-    path: () => paths()[0]!,
-    async configured() {
-      for (const p of paths()) {
-        const e = getServer(await readJson(p), root);
+    keyOnDisk: true,
+    path: (dir) => paths(dir)[0]!,
+    async configured(dir) {
+      for (const p of paths(dir)) {
+        const e = getServer(await readJson(p, dir), root);
         if (e) return found(p, key(e));
       }
       return undefined;
     },
-    async install(ctx) {
-      const [p, ...others] = paths();
-      const where = (await update(p!, root, (doc) => setServer(doc, root, entry(ctx, p!))))!;
+    async install(ctx, dir) {
+      const [p, ...others] = paths(dir);
+      const set = (doc: Doc | undefined) => setServer(doc, root, entry(ctx, p!));
+      const where = (await update(p!, root, set, dir))!;
       const moved: string[] = [];
       for (const o of others) {
-        const from = await update(o, root, (doc) => unsetServer(doc, root));
+        const from = await update(o, root, (doc) => unsetServer(doc, root), dir);
         if (from) moved.push(from);
       }
       return moved.length ? `${where}, removed from ${moved.join(", ")}` : where;
     },
-    async remove() {
+    async remove(dir) {
       const done: string[] = [];
-      for (const p of paths()) {
-        const where = await update(p, root, (doc) => unsetServer(doc, root));
+      for (const p of paths(dir)) {
+        const where = await update(p, root, (doc) => unsetServer(doc, root), dir);
         if (where) done.push(where);
       }
       return done.join(", ") || undefined;

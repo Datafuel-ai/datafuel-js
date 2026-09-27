@@ -22,6 +22,7 @@ const legacyFile = () => join(codeiumDir(), "mcp_config.json");
 export const windsurf = jsonClient({
   id: "windsurf",
   label: "Windsurf",
+  project: false,
   root: "mcpServers",
   entry: (ctx, path) => entry(ctx, path === legacyFile()),
   key: header,

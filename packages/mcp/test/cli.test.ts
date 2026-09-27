@@ -21,6 +21,18 @@ describe("parse", () => {
     expect(o.yes).toBe(true);
   });
 
+  it("reads --project", () => {
+    expect(parse(["init"], {}).project).toBe(false);
+    expect(parse(["init", "--project"], {}).project).toBe(true);
+  });
+
+  it("rejects --project for clients without project scope", () => {
+    expect(() =>
+      parse(["init", "--project", "--client", "cursor,windsurf,claude-desktop"], {}),
+    ).toThrow("--project: no project scope for windsurf, claude-desktop");
+    expect(parse(["init", "--project", "--client", "codex,gemini"], {}).clients).toHaveLength(2);
+  });
+
   it("takes --url over DATAFUEL_URL", () => {
     expect(parse([], { DATAFUEL_URL: "http://env" }).url).toBe("http://env");
     expect(parse(["--url", "http://flag"], { DATAFUEL_URL: "http://env" }).url).toBe("http://flag");

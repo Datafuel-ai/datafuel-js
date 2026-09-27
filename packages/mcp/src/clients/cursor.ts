@@ -16,10 +16,11 @@ export const unmerge = (doc: Doc | undefined) => unsetServer(doc, "mcpServers");
 export const cursor = jsonClient({
   id: "cursor",
   label: "Cursor",
+  project: true,
   root: "mcpServers",
   entry,
   key: header,
-  paths: () => [join(homedir(), ".cursor", "mcp.json")],
+  paths: (dir) => [join(dir ?? homedir(), ".cursor", "mcp.json")],
   detect: () => exists(join(homedir(), ".cursor")),
   restart: "Cursor",
 });

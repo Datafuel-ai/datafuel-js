@@ -11,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { parse } from "smol-toml";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -167,6 +167,29 @@ describe.each(clients.map((c) => [c.id, c] as const))("%s on disk", (_, c) => {
     await c.remove();
     expect(await filesWith(home, ctx.key)).toEqual([]);
     await rm(p + ".bak", { force: true });
+  });
+
+  it.runIf(c.project)("names a broken project file relative to the project", async () => {
+    const dir = join(home, "proj");
+    const p = c.path(dir);
+    await mkdir(dirname(p), { recursive: true });
+    await writeFile(p, "{ broken");
+    const named = new RegExp(`^${relative(dir, p).replaceAll(".", "\\.")} (is )?not valid`);
+    await expect(c.install(ctx, dir)).rejects.toThrow(named);
+    await expect(c.configured(dir)).rejects.toThrow(named);
+    await rm(p);
+  });
+
+  it.runIf(c.project)("installs into and removes from a project", async () => {
+    const dir = join(home, "proj");
+    const p = c.path(dir);
+    expect(p.startsWith(join(dir, "."))).toBe(true);
+    expect((await c.install(ctx, dir)).startsWith(relative(dir, p))).toBe(true);
+    expect(await c.configured(dir)).toMatchObject({ path: p });
+    expect(await c.configured()).toBeUndefined();
+    expect(await mode(p)).toBe(0o600);
+    expect(await c.remove(dir)).toBeTruthy();
+    expect(await filesWith(home, ctx.key)).toEqual([]);
   });
 });
 

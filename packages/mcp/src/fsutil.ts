@@ -10,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, delimiter, dirname, join, sep } from "node:path";
+import { basename, delimiter, dirname, join, relative, sep } from "node:path";
 
 export type Doc = Record<string, unknown>;
 
@@ -33,7 +33,7 @@ export async function readText(path: string): Promise<string | undefined> {
   }
 }
 
-export async function readJson(path: string): Promise<Doc | undefined> {
+export async function readJson(path: string, dir?: string): Promise<Doc | undefined> {
   const text = await readText(path);
   if (!text?.trim()) return undefined;
 
@@ -45,8 +45,8 @@ export async function readJson(path: string): Promise<Doc | undefined> {
     bad = /at position \d+/.exec((err as Error).message)?.[0] ?? "";
   }
   if (bad !== undefined)
-    throw new Error(`${tilde(path)} is not valid JSON${bad && ` (${bad})`}, left untouched`);
-  if (!isObject(doc)) throw new Error(`${tilde(path)} is not a JSON object, left untouched`);
+    throw new Error(`${shown(path, dir)} is not valid JSON${bad && ` (${bad})`}, left untouched`);
+  if (!isObject(doc)) throw new Error(`${shown(path, dir)} is not a JSON object, left untouched`);
   return doc;
 }
 
@@ -84,8 +84,10 @@ export async function writeText(
   return backup;
 }
 
-export const saved = (path: string, backup: string | undefined) =>
-  backup ? `${tilde(path)} (backup: ${basename(backup)})` : tilde(path);
+export const shown = (path: string, dir?: string) => (dir ? relative(dir, path) : tilde(path));
+
+export const saved = (path: string, backup: string | undefined, dir?: string) =>
+  backup ? `${shown(path, dir)} (backup: ${basename(backup)})` : shown(path, dir);
 
 export function tilde(path: string): string {
   const home = homedir();

@@ -19,7 +19,7 @@ export const entry = ({ url, key }: Ctx): Doc => ({
 export const merge = (doc: Doc | undefined, ctx: Ctx) => setServer(doc, "mcpServers", entry(ctx));
 export const unmerge = (doc: Doc | undefined) => unsetServer(doc, "mcpServers");
 
-const path = () => join(homedir(), ".claude.json");
+const path = (dir?: string) => (dir ? join(dir, ".mcp.json") : join(homedir(), ".claude.json"));
 
 // .cmd shims on Windows need a shell, which would put the key through cmd.exe quoting.
 const hasCli = async () => process.platform !== "win32" && (await onPath("claude"));
@@ -32,9 +32,9 @@ async function claude(...args: string[]): Promise<string | undefined> {
   );
 }
 
-async function install(ctx: Ctx): Promise<string> {
+async function install(ctx: Ctx, dir?: string): Promise<string> {
   const url = mcpUrl(ctx.url);
-  if (await hasCli()) {
+  if (!dir && (await hasCli())) {
     await claude("remove", "--scope", "user", name);
     const err = await claude(
       "add",
@@ -52,23 +52,26 @@ async function install(ctx: Ctx): Promise<string> {
       `datafuel-mcp: claude mcp add failed (${redact(err.replaceAll(ctx.key, mask(ctx.key)))}), editing ${tilde(path())}\n`,
     );
   }
-  return (await update(path(), "mcpServers", (doc) => merge(doc, ctx))) as string;
+  return (await update(path(dir), "mcpServers", (doc) => merge(doc, ctx), dir))!;
 }
 
-async function remove(): Promise<string | undefined> {
-  if (!getServer(await readJson(path()), "mcpServers")) return undefined;
-  if ((await hasCli()) && !(await claude("remove", "--scope", "user", name))) return "user scope";
-  return update(path(), "mcpServers", unmerge);
+async function remove(dir?: string): Promise<string | undefined> {
+  if (!getServer(await readJson(path(dir), dir), "mcpServers")) return undefined;
+  if (!dir && (await hasCli()) && !(await claude("remove", "--scope", "user", name)))
+    return "user scope";
+  return update(path(dir), "mcpServers", unmerge, dir);
 }
 
 export const claudeCode: Client = {
   id: "claude-code",
   label: "Claude Code",
+  project: true,
+  keyOnDisk: true,
   path,
   detect: async () => (await onPath("claude")) || (await exists(path())),
-  configured: async () => {
-    const e = getServer(await readJson(path()), "mcpServers");
-    return e && found(path(), header(e));
+  configured: async (dir) => {
+    const e = getServer(await readJson(path(dir), dir), "mcpServers");
+    return e && found(path(dir), header(e));
   },
   install,
   remove,

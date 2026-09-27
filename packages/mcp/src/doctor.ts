@@ -2,7 +2,7 @@ import * as p from "@clack/prompts";
 import { checkKey, reason, version } from "./api.js";
 import type { Opts } from "./cli.js";
 import { clients } from "./clients/index.js";
-import { tilde } from "./fsutil.js";
+import { shown } from "./fsutil.js";
 import { mask } from "./mask.js";
 import { row } from "./ui.js";
 
@@ -39,13 +39,14 @@ async function endpoint(opts: Opts): Promise<boolean> {
 export async function doctor(opts: Opts): Promise<boolean> {
   p.intro(`DataFuel MCP doctor (v${version}, node ${process.versions.node})`);
   let ok = await endpoint(opts);
+  const dir = opts.project ? process.cwd() : undefined;
 
-  for (const c of opts.clients ?? clients) {
+  for (const c of opts.clients ?? clients.filter((c) => c.project || !dir)) {
     try {
-      const found = await c.configured();
-      if (found) p.log.success(row(c.label, `configured (${tilde(found.path)})`));
-      else if (await c.detect()) p.log.warn(row(c.label, "detected, not configured"));
-      else p.log.info(row(c.label, "not found"));
+      const found = await c.configured(dir);
+      if (found) p.log.success(row(c.label, `configured (${shown(found.path, dir)})`));
+      else if (!dir && (await c.detect())) p.log.warn(row(c.label, "detected, not configured"));
+      else p.log.info(row(c.label, dir ? "not configured" : "not found"));
     } catch (err) {
       ok = false;
       p.log.error(row(c.label, reason(err)));

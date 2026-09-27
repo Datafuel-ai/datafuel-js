@@ -16,10 +16,11 @@ export const unmerge = (doc: Doc | undefined) => unsetServer(doc, "mcpServers");
 export const gemini = jsonClient({
   id: "gemini",
   label: "Gemini CLI",
+  project: true,
   root: "mcpServers",
   entry,
   key: header,
-  paths: () => [join(homedir(), ".gemini", "settings.json")],
+  paths: (dir) => [join(dir ?? homedir(), ".gemini", "settings.json")],
   detect: async () => (await onPath("gemini")) || (await exists(join(homedir(), ".gemini"))),
   restart: "Gemini CLI",
 });
