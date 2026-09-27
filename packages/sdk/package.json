@@ -45,6 +45,9 @@
     "markdown",
     "llm"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Datafuel-ai/datafuel-js.git",

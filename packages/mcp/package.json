@@ -40,6 +40,9 @@
     "smol-toml": "^1.9.0",
     "zod": "^4.6.5"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Datafuel-ai/datafuel-js.git",
