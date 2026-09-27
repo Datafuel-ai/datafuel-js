@@ -109,7 +109,6 @@ jobs:
           PACKAGE: ${{ needs.verify.outputs.package }}
           VERSION: ${{ needs.verify.outputs.version }}
           TAG: ${{ needs.verify.outputs.tag }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: ${{ !github.event.repository.private }}
         run: |
           got=$(tar -xOzf ./*.tgz package/package.json | node -p 'const p = JSON.parse(require("fs").readFileSync(0)); p.name + "@" + p.version')
