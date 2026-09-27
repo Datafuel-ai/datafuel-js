@@ -34,7 +34,7 @@ export default defineConfig({
   clean: true,
   target: "node20",
   banner: { js: "#!/usr/bin/env node" },
-  noExternal: [/^@modelcontextprotocol\//, "zod"],
+  noExternal: [/^@modelcontextprotocol\//, "zod", "smol-toml"],
   metafile: true,
   onSuccess: licenses,
 });
