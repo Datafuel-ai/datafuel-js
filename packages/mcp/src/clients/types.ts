@@ -1,12 +1,16 @@
 export type Ctx = { url: string; key: string };
 
+export type Found = { path: string; key: string | undefined };
+
 export type Client = {
   id: string;
   label: string;
-  path(): string;
+  project: boolean;
+  keyOnDisk: boolean;
+  path(dir?: string): string;
   detect(): Promise<boolean>;
-  configured(): Promise<boolean>;
-  install(ctx: Ctx): Promise<string>;
-  remove(): Promise<string | undefined>;
+  configured(dir?: string): Promise<Found[]>;
+  install(ctx: Ctx, dir?: string): Promise<string>;
+  remove(dir?: string): Promise<string | undefined>;
   restart: string;
 };

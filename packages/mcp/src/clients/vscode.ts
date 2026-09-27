@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { mcpUrl, reason } from "../api.js";
 import { appData, type Doc, exists, onPath, readJson, xdgConfig } from "../fsutil.js";
-import { getServer, setServer, unsetServer, update } from "./json.js";
+import { found, getServer, setServer, unsetServer, update } from "./json.js";
 import type { Client } from "./types.js";
 
 const inputId = "datafuel-api-key";
@@ -41,7 +41,8 @@ export function unmerge(doc: Doc | undefined): Doc | undefined {
   return next;
 }
 
-function path(): string {
+function path(dir?: string): string {
+  if (dir) return join(dir, ".vscode", "mcp.json");
   const user =
     process.platform === "darwin"
       ? join(homedir(), "Library", "Application Support", "Code", "User")
@@ -54,12 +55,15 @@ function path(): string {
 export const vscode: Client = {
   id: "vscode",
   label: "VS Code",
+  project: true,
+  keyOnDisk: false,
   path,
   detect: async () => (await onPath("code")) || (await exists(dirname(path()))),
-  configured: async () => !!getServer(await readJson(path()), "servers"),
-  install: async ({ url }) => {
+  configured: async (dir) =>
+    getServer(await readJson(path(dir), dir), "servers") ? [found(path(dir), undefined)] : [],
+  install: async ({ url }, dir) => {
     try {
-      return `${await update(path(), "servers", (doc) => merge(doc, url))}, asks for the key on first start`;
+      return `${await update(path(dir), "servers", (doc) => merge(doc, url), dir)}, asks for the key on first start`;
     } catch (err) {
       const snippet = JSON.stringify(
         { servers: { datafuel: entry(url) }, inputs: [input] },
@@ -69,6 +73,6 @@ export const vscode: Client = {
       throw new Error(`${reason(err)}\nAdd this to it by hand:\n${snippet}`, { cause: err });
     }
   },
-  remove: () => update(path(), "servers", unmerge),
+  remove: (dir) => update(path(dir), "servers", unmerge, dir),
   restart: "VS Code",
 };
