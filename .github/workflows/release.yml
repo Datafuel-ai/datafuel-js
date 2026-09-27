@@ -64,16 +64,6 @@ jobs:
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-      - if: steps.resolve.outputs.package == '@datafuel/mcp'
-        run: |
-          range=$(node -p "require('./packages/mcp/package.json').dependencies['@datafuel/sdk']")
-          if ! out=$(npm view "@datafuel/sdk@$range" version 2>"$RUNNER_TEMP/view.log"); then
-            grep -q E404 "$RUNNER_TEMP/view.log" || { cat "$RUNNER_TEMP/view.log"; exit 1; }
-          fi
-          if [ -z "$out" ]; then
-            echo "::error::no published @datafuel/sdk satisfies $range; release the SDK first (tag sdk-v<version>)"
-            exit 1
-          fi
       - run: npm ci
       - run: npm run check
       - run: npm run build

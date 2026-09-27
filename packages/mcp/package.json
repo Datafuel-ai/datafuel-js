@@ -1,6 +1,6 @@
 {
   "name": "@datafuel/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Set up the DataFuel MCP server in Claude Code, Cursor, VS Code, Windsurf, Claude Desktop, Codex and Gemini CLI",
   "license": "MIT",
   "homepage": "https://datafuel.ai",
@@ -32,8 +32,7 @@
     "gemini"
   ],
   "dependencies": {
-    "@clack/prompts": "^0.11.0",
-    "@datafuel/sdk": "^0.1.0"
+    "@clack/prompts": "^0.11.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",

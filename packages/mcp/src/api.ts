@@ -1,4 +1,3 @@
-import { APIError, DataFuel, TransportError } from "@datafuel/sdk";
 import { version } from "../package.json";
 
 export { version };
@@ -16,23 +15,22 @@ export const tagged: typeof fetch = (input, init) => {
 type KeyCheck = { ok: true; credits: number } | { ok: false; status: number };
 
 export async function checkKey(url: string, key: string): Promise<KeyCheck> {
-  const baseUrl = new URL("/api/v1", url).toString();
-  const df = new DataFuel({
-    apiKey: key,
-    baseUrl,
-    userAgent: clientTag,
-    timeoutMs: 15_000,
-    fetch: tagged,
-  });
+  const endpoint = new URL("/api/v1/users/@me/balance", url).toString();
+  let res: Response;
   try {
-    return { ok: true, credits: await df.balance() };
+    res = await tagged(endpoint, {
+      headers: { "X-API-Key": key, Accept: "application/json", "User-Agent": clientTag },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
   } catch (err) {
-    if (err instanceof APIError) return { ok: false, status: err.status };
-    if (err instanceof TransportError) {
-      throw new Error(`could not reach ${baseUrl}/users/@me/balance`, { cause: err });
-    }
-    throw err;
+    throw new Error(`could not reach ${endpoint}`, { cause: err });
   }
+  if (!res.ok) return { ok: false, status: res.status };
+  const body = (await res.json().catch(() => undefined)) as { balance?: unknown } | undefined;
+  const credits = Number(body?.balance);
+  if (Number.isNaN(credits)) throw new Error(`unexpected answer from ${endpoint}`);
+  return { ok: true, credits };
 }
 
 export function reason(err: unknown): string {
