@@ -29,6 +29,7 @@ export function getServer(doc: Doc | undefined, root: string): Doc | undefined {
 
 export async function update(
   path: string,
+  root: string,
   next: (doc: Doc | undefined) => Doc | undefined,
 ): Promise<string | undefined> {
   const prev = await readJson(path);
@@ -39,6 +40,6 @@ export async function update(
     throw new Error(`${tilde(path)}: ${(err as Error).message}, left untouched`, { cause: err });
   }
   if (!doc) return undefined;
-  const backup = await writeJson(path, doc);
+  const backup = await writeJson(path, doc, !!prev && !getServer(prev, root));
   return backup ? `${tilde(path)} (backup: ${basename(backup)})` : tilde(path);
 }

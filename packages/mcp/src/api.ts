@@ -13,7 +13,7 @@ const tagged: typeof fetch = (input, init) => {
   return fetch(input, { ...init, headers });
 };
 
-export type KeyCheck = { ok: true; credits: number } | { ok: false; status: number };
+type KeyCheck = { ok: true; credits: number } | { ok: false; status: number };
 
 export async function checkKey(url: string, key: string): Promise<KeyCheck> {
   const baseUrl = new URL("/api/v1", url).toString();

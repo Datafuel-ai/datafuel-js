@@ -5,13 +5,14 @@ import { doctor } from "./doctor.js";
 import { init } from "./init.js";
 import { proxy } from "./proxy.js";
 import { remove } from "./remove.js";
+import { redact } from "./mask.js";
 
 async function main(): Promise<number> {
   let opts;
   try {
     opts = parse(process.argv.slice(2));
   } catch (err) {
-    process.stderr.write(`datafuel-mcp: ${reason(err)}\n\n${usage}\n`);
+    process.stderr.write(`datafuel-mcp: ${redact(reason(err))}\n\n${usage}\n`);
     return 2;
   }
 
@@ -37,7 +38,7 @@ async function main(): Promise<number> {
     const run = { init, remove, doctor }[opts.command];
     return (await run(opts)) ? 0 : 1;
   } catch (err) {
-    p.cancel(reason(err));
+    p.cancel(redact(reason(err)));
     return 1;
   }
 }

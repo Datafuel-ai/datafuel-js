@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parse } from "../src/cli.js";
-import { mask } from "../src/ui.js";
+import { mask, redact } from "../src/mask.js";
 
 describe("parse", () => {
   it("defaults to the proxy on the prod url", () => {
@@ -40,6 +40,13 @@ describe("mask", () => {
     const key = "df_key_test_fake_0000000000001234";
     expect(mask(key)).toBe("df_key_••••1234");
     expect(mask(key)).not.toContain("fake");
+  });
+
+  it("redacts keys inside text", () => {
+    expect(redact("unexpected argument: df_key_test_fake_0000000000001234")).toBe(
+      "unexpected argument: df_key_••••1234",
+    );
+    expect(redact("invalid --url: 'df_key_ab'")).toBe("invalid --url: 'df_key_••••'");
   });
 
   it("hides short keys entirely", () => {

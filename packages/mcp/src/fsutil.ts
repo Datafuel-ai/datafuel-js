@@ -49,12 +49,16 @@ export async function readJson(path: string): Promise<Doc | undefined> {
   return doc;
 }
 
-export async function writeJson(path: string, doc: Doc): Promise<string | undefined> {
+export async function writeJson(
+  path: string,
+  doc: Doc,
+  keepOriginal = false,
+): Promise<string | undefined> {
   const target = await realpath(path).catch(() => path);
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
 
   let backup: string | undefined;
-  if (await exists(target)) {
+  if (keepOriginal && (await exists(target)) && !(await exists(`${target}.bak`))) {
     backup = `${target}.bak`;
     await copyFile(target, backup);
     await chmod(backup, 0o600);

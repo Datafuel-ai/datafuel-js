@@ -21,7 +21,7 @@ export const cursor: Client = {
   path,
   detect: () => exists(dirname(path())),
   configured: async () => !!getServer(await readJson(path()), "mcpServers"),
-  install: (ctx) => update(path(), (doc) => merge(doc, ctx)) as Promise<string>,
-  remove: () => update(path(), unmerge),
+  install: (ctx) => update(path(), "mcpServers", (doc) => merge(doc, ctx)) as Promise<string>,
+  remove: () => update(path(), "mcpServers", unmerge),
   restart: "Cursor",
 };

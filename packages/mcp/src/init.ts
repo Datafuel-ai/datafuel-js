@@ -3,7 +3,8 @@ import { checkKey, mcpUrl, reason } from "./api.js";
 import type { Opts } from "./cli.js";
 import { clients } from "./clients/index.js";
 import type { Client } from "./clients/types.js";
-import { mask, row } from "./ui.js";
+import { mask } from "./mask.js";
+import { row } from "./ui.js";
 
 function answer<T>(v: T): Exclude<T, symbol> {
   if (p.isCancel(v)) throw new Error("cancelled");

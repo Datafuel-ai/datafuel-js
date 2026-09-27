@@ -3,13 +3,14 @@ import { checkKey, reason, version } from "./api.js";
 import type { Opts } from "./cli.js";
 import { clients } from "./clients/index.js";
 import { tilde } from "./fsutil.js";
-import { mask, row } from "./ui.js";
+import { mask } from "./mask.js";
+import { row } from "./ui.js";
 
 async function endpoint(opts: Opts): Promise<boolean> {
   const key = opts.apiKey ?? process.env.DATAFUEL_API_KEY?.trim();
   if (!key) {
     p.log.warn(row("API key", "not set, pass --api-key or set DATAFUEL_API_KEY to check it"));
-    return true;
+    return false;
   }
   let res;
   try {
@@ -50,6 +51,6 @@ export async function doctor(opts: Opts): Promise<boolean> {
     }
   }
 
-  p.outro(ok ? "All good." : "Problems found.");
+  p.outro(ok ? "All good." : "Problems found or not checked.");
   return ok;
 }

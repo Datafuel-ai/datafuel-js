@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { mcpUrl } from "../api.js";
+import { mcpUrl, reason } from "../api.js";
 import { appData, type Doc, exists, onPath, readJson, xdgConfig } from "../fsutil.js";
 import { getServer, setServer, unsetServer, update } from "./json.js";
 import type { Client } from "./types.js";
@@ -57,8 +57,18 @@ export const vscode: Client = {
   path,
   detect: async () => (await onPath("code")) || (await exists(dirname(path()))),
   configured: async () => !!getServer(await readJson(path()), "servers"),
-  install: async ({ url }) =>
-    `${await update(path(), (doc) => merge(doc, url))}, asks for the key on first start`,
-  remove: () => update(path(), unmerge),
+  install: async ({ url }) => {
+    try {
+      return `${await update(path(), "servers", (doc) => merge(doc, url))}, asks for the key on first start`;
+    } catch (err) {
+      const snippet = JSON.stringify(
+        { servers: { datafuel: entry(url) }, inputs: [input] },
+        null,
+        2,
+      );
+      throw new Error(`${reason(err)}\nAdd this to it by hand:\n${snippet}`, { cause: err });
+    }
+  },
+  remove: () => update(path(), "servers", unmerge),
   restart: "VS Code",
 };

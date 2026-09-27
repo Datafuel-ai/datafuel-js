@@ -3,7 +3,7 @@ import { defaultUrl } from "./api.js";
 import { clients } from "./clients/index.js";
 import type { Client } from "./clients/types.js";
 
-export type Command = "init" | "remove" | "doctor" | "proxy" | "help" | "version";
+type Command = "init" | "remove" | "doctor" | "proxy" | "help" | "version";
 
 export type Opts = {
   command: Command;
