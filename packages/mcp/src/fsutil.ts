@@ -10,7 +10,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir } from "node:os";
-import { delimiter, dirname, join, sep } from "node:path";
+import { basename, delimiter, dirname, join, sep } from "node:path";
 
 export type Doc = Record<string, unknown>;
 
@@ -24,15 +24,18 @@ export async function exists(path: string): Promise<boolean> {
   );
 }
 
-export async function readJson(path: string): Promise<Doc | undefined> {
-  let text: string;
+export async function readText(path: string): Promise<string | undefined> {
   try {
-    text = await readFile(path, "utf8");
+    return await readFile(path, "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw err;
   }
-  if (!text.trim()) return undefined;
+}
+
+export async function readJson(path: string): Promise<Doc | undefined> {
+  const text = await readText(path);
+  if (!text?.trim()) return undefined;
 
   let doc: unknown;
   let bad: string | undefined;
@@ -52,6 +55,14 @@ export async function writeJson(
   doc: Doc,
   keepOriginal = false,
 ): Promise<string | undefined> {
+  return writeText(path, JSON.stringify(doc, null, 2) + "\n", keepOriginal);
+}
+
+export async function writeText(
+  path: string,
+  text: string,
+  keepOriginal = false,
+): Promise<string | undefined> {
   const target = await realpath(path).catch(() => path);
   await mkdir(dirname(target), { recursive: true, mode: 0o700 });
 
@@ -64,7 +75,7 @@ export async function writeJson(
 
   const tmp = `${target}.${process.pid}.tmp`;
   try {
-    await writeFile(tmp, JSON.stringify(doc, null, 2) + "\n", { mode: 0o600, flag: "wx" });
+    await writeFile(tmp, text, { mode: 0o600, flag: "wx" });
     await rename(tmp, target);
   } catch (err) {
     await rm(tmp, { force: true });
@@ -73,17 +84,20 @@ export async function writeJson(
   return backup;
 }
 
+export const saved = (path: string, backup: string | undefined) =>
+  backup ? `${tilde(path)} (backup: ${basename(backup)})` : tilde(path);
+
 export function tilde(path: string): string {
   const home = homedir();
   return path === home || path.startsWith(home + sep) ? "~" + path.slice(home.length) : path;
 }
 
 export function appData(): string {
-  return process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
+  return process.env.APPDATA || join(homedir(), "AppData", "Roaming");
 }
 
 export function xdgConfig(): string {
-  return process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+  return process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
 }
 
 export async function onPath(cmd: string): Promise<boolean> {

@@ -1,9 +1,9 @@
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { defaultUrl } from "../api.js";
-import { appData, type Doc, exists, readJson, xdgConfig } from "../fsutil.js";
-import { getServer, setServer, unsetServer, update } from "./json.js";
-import type { Client, Ctx } from "./types.js";
+import { appData, type Doc, exists, isObject, xdgConfig } from "../fsutil.js";
+import { jsonClient, setServer, unsetServer } from "./json.js";
+import type { Ctx } from "./types.js";
 
 export const entry = ({ url, key }: Ctx): Doc => ({
   command: "npx",
@@ -22,13 +22,13 @@ function path(): string {
   return join(xdgConfig(), "Claude", file);
 }
 
-export const claudeDesktop: Client = {
+export const claudeDesktop = jsonClient({
   id: "claude-desktop",
   label: "Claude Desktop",
-  path,
+  root: "mcpServers",
+  entry,
+  key: (e) => (isObject(e.env) ? e.env.DATAFUEL_API_KEY : undefined),
+  paths: () => [path()],
   detect: () => exists(dirname(path())),
-  configured: async () => !!getServer(await readJson(path()), "mcpServers"),
-  install: (ctx) => update(path(), "mcpServers", (doc) => merge(doc, ctx)) as Promise<string>,
-  remove: () => update(path(), "mcpServers", unmerge),
   restart: "Claude Desktop",
-};
+});

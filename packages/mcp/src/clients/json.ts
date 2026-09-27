@@ -1,5 +1,5 @@
-import { basename } from "node:path";
-import { type Doc, isObject, readJson, tilde, writeJson } from "../fsutil.js";
+import { type Doc, isObject, readJson, saved, tilde, writeJson } from "../fsutil.js";
+import type { Client, Ctx, Found } from "./types.js";
 
 export const name = "datafuel";
 
@@ -40,6 +40,45 @@ export async function update(
     throw new Error(`${tilde(path)}: ${(err as Error).message}, left untouched`, { cause: err });
   }
   if (!doc) return undefined;
-  const backup = await writeJson(path, doc, !!prev && !getServer(prev, root));
-  return backup ? `${tilde(path)} (backup: ${basename(backup)})` : tilde(path);
+  return saved(path, await writeJson(path, doc, !!prev && !getServer(prev, root)));
+}
+
+export const found = (path: string, key: unknown): Found => ({
+  path,
+  key: typeof key === "string" ? key : undefined,
+});
+
+export const header = (e: Doc) => (isObject(e.headers) ? e.headers["X-API-Key"] : undefined);
+
+type Spec = Pick<Client, "id" | "label" | "detect" | "restart"> & {
+  root: string;
+  entry: (ctx: Ctx, path: string) => Doc;
+  key: (entry: Doc) => unknown;
+  paths: () => string[];
+};
+
+export function jsonClient({ root, entry, key, paths, ...rest }: Spec): Client {
+  return {
+    ...rest,
+    path: () => paths()[0]!,
+    async configured() {
+      for (const p of paths()) {
+        const e = getServer(await readJson(p), root);
+        if (e) return found(p, key(e));
+      }
+      return undefined;
+    },
+    async install(ctx) {
+      const p = paths()[0]!;
+      return (await update(p, root, (doc) => setServer(doc, root, entry(ctx, p))))!;
+    },
+    async remove() {
+      const done: string[] = [];
+      for (const p of paths()) {
+        const where = await update(p, root, (doc) => unsetServer(doc, root));
+        if (where) done.push(where);
+      }
+      return done.join(", ") || undefined;
+    },
+  };
 }

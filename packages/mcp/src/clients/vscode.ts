@@ -2,7 +2,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { mcpUrl, reason } from "../api.js";
 import { appData, type Doc, exists, onPath, readJson, xdgConfig } from "../fsutil.js";
-import { getServer, setServer, unsetServer, update } from "./json.js";
+import { found, getServer, setServer, unsetServer, update } from "./json.js";
 import type { Client } from "./types.js";
 
 const inputId = "datafuel-api-key";
@@ -56,7 +56,7 @@ export const vscode: Client = {
   label: "VS Code",
   path,
   detect: async () => (await onPath("code")) || (await exists(dirname(path()))),
-  configured: async () => !!getServer(await readJson(path()), "servers"),
+  configured: async () => getServer(await readJson(path()), "servers") && found(path(), undefined),
   install: async ({ url }) => {
     try {
       return `${await update(path(), "servers", (doc) => merge(doc, url))}, asks for the key on first start`;

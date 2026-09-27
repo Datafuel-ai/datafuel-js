@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { mcpUrl } from "../api.js";
 import { type Doc, exists, onPath, readJson, tilde } from "../fsutil.js";
 import { mask, redact } from "../mask.js";
-import { getServer, name, setServer, unsetServer, update } from "./json.js";
+import { found, getServer, header, name, setServer, unsetServer, update } from "./json.js";
 import type { Client, Ctx } from "./types.js";
 
 const run = promisify(execFile);
@@ -66,7 +66,10 @@ export const claudeCode: Client = {
   label: "Claude Code",
   path,
   detect: async () => (await onPath("claude")) || (await exists(path())),
-  configured: async () => !!getServer(await readJson(path()), "mcpServers"),
+  configured: async () => {
+    const e = getServer(await readJson(path()), "mcpServers");
+    return e && found(path(), header(e));
+  },
   install,
   remove,
   restart: "Claude Code",

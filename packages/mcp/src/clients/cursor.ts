@@ -1,9 +1,9 @@
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { mcpUrl } from "../api.js";
-import { type Doc, exists, readJson } from "../fsutil.js";
-import { getServer, setServer, unsetServer, update } from "./json.js";
-import type { Client, Ctx } from "./types.js";
+import { type Doc, exists } from "../fsutil.js";
+import { header, jsonClient, setServer, unsetServer } from "./json.js";
+import type { Ctx } from "./types.js";
 
 export const entry = ({ url, key }: Ctx): Doc => ({
   url: mcpUrl(url),
@@ -13,15 +13,13 @@ export const entry = ({ url, key }: Ctx): Doc => ({
 export const merge = (doc: Doc | undefined, ctx: Ctx) => setServer(doc, "mcpServers", entry(ctx));
 export const unmerge = (doc: Doc | undefined) => unsetServer(doc, "mcpServers");
 
-const path = () => join(homedir(), ".cursor", "mcp.json");
-
-export const cursor: Client = {
+export const cursor = jsonClient({
   id: "cursor",
   label: "Cursor",
-  path,
-  detect: () => exists(dirname(path())),
-  configured: async () => !!getServer(await readJson(path()), "mcpServers"),
-  install: (ctx) => update(path(), "mcpServers", (doc) => merge(doc, ctx)) as Promise<string>,
-  remove: () => update(path(), "mcpServers", unmerge),
+  root: "mcpServers",
+  entry,
+  key: header,
+  paths: () => [join(homedir(), ".cursor", "mcp.json")],
+  detect: () => exists(join(homedir(), ".cursor")),
   restart: "Cursor",
-};
+});

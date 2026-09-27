@@ -42,7 +42,8 @@ export async function doctor(opts: Opts): Promise<boolean> {
 
   for (const c of opts.clients ?? clients) {
     try {
-      if (await c.configured()) p.log.success(row(c.label, `configured (${tilde(c.path())})`));
+      const found = await c.configured();
+      if (found) p.log.success(row(c.label, `configured (${tilde(found.path)})`));
       else if (await c.detect()) p.log.warn(row(c.label, "detected, not configured"));
       else p.log.info(row(c.label, "not found"));
     } catch (err) {

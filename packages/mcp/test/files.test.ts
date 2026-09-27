@@ -114,10 +114,10 @@ describe.each(clients.map((c) => [c.id, c] as const))("%s on disk", (_, c) => {
       JSON.stringify({ keep: 1, mcpServers: { other: theirs }, servers: { other: theirs } }),
     );
 
-    expect(await c.configured()).toBe(false);
+    expect(await c.configured()).toBeUndefined();
     await c.install(ctx);
     await c.install(ctx);
-    expect(await c.configured()).toBe(true);
+    expect(await c.configured()).toEqual({ path: p, key: c.id === "vscode" ? undefined : ctx.key });
 
     const doc = await json(p);
     expect(doc.keep).toBe(1);
@@ -126,7 +126,7 @@ describe.each(clients.map((c) => [c.id, c] as const))("%s on disk", (_, c) => {
     expect(await json(p + ".bak")).toMatchObject({ keep: 1 });
 
     expect(await c.remove()).toBeTruthy();
-    expect(await c.configured()).toBe(false);
+    expect(await c.configured()).toBeUndefined();
     expect(await c.remove()).toBeUndefined();
   });
 
