@@ -217,7 +217,7 @@ it("windsurf writes url to the Devin config, serverUrl to the legacy one, remove
   await writeFile(legacy, JSON.stringify({ mcpServers: { datafuel: { serverUrl: "x" } } }));
   expect(await windsurf.remove()).toContain(",");
   expect(await filesWith(home, ctx.key)).toEqual([]);
-  await rm(join(home, ".config"), { recursive: true });
+  await rm(dirname(devin), { recursive: true });
 });
 
 it("windsurf moves the entry to the Devin config and leaves no old key behind", async () => {
@@ -239,13 +239,14 @@ it("windsurf moves the entry to the Devin config and leaves no old key behind", 
   await windsurf.remove();
   await rm(legacy);
   await rm(legacy + ".bak");
-  await rm(join(home, ".config"), { recursive: true });
+  await rm(dirname(devin), { recursive: true });
 });
 
 it.each(clients.map((c) => [c.id, c] as const))(
   "%s names a broken file without echoing its content",
   async (_, c) => {
     const p = c.path();
+    await mkdir(dirname(p), { recursive: true });
     await writeFile(p, c.id === "codex" ? `x = 1\nk = "${ctx.key}" junk\n` : `{"k": ${ctx.key}}`);
     const err = await c.install(ctx).then(
       () => new Error("installed"),
@@ -273,6 +274,7 @@ it("codex refuses a layout it cannot edit and prints an env-referenced snippet",
 
 it("vscode prints a paste-able snippet without the key when it cannot edit the file", async () => {
   const vscode = clients.find((c) => c.id === "vscode")!;
+  await mkdir(dirname(vscode.path()), { recursive: true });
   await writeFile(vscode.path(), '{ // jsonc\n "servers": {} }');
   const err = await vscode.install(ctx).then(
     () => new Error("installed"),
