@@ -12,7 +12,7 @@ import type { AI, Engine, Proxy, ScrapeOptions } from "./models.js";
 export const DEFAULT_BASE_URL = "https://scraping-api.datafuel.ai/api/v1";
 
 /** Kept in step with package.json by a test; see test/hardening.test.ts. */
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 /** How long a synchronous call waits for a result before giving up. */
 export const DEFAULT_TIMEOUT_MS = 180_000;

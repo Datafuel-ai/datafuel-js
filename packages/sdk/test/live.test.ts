@@ -33,13 +33,8 @@ live("live API", () => {
   });
 
   it("lists capabilities", async () => {
-    try {
-      const caps = await df.capabilities();
-      expect(caps.modules.length).toBeGreaterThan(0);
-    } catch (error) {
-      if (error instanceof datafuel.NotFound) return; // not deployed here yet
-      throw error;
-    }
+    const caps = await df.capabilities();
+    expect(caps.modules.length).toBeGreaterThan(0);
   });
 
   it("scrapes markdown with a full envelope", async () => {

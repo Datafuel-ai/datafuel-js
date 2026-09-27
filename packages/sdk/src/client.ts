@@ -439,7 +439,7 @@ export class DataFuel {
   /** Which task types and LLM engines are switched on right now. */
   async capabilities(options: CallOptions = {}): Promise<Capabilities> {
     return new Capabilities(
-      record(await this.send(new core.Request("GET", "/capabilities"), options)),
+      record(await this.send(new core.Request("GET", "/config/capabilities"), options)),
     );
   }
 

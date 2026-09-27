@@ -94,7 +94,7 @@ describe("crawls", () => {
 describe("account", () => {
   it("reads capabilities, balance and profile", async () => {
     const api = new Router({
-      "GET /capabilities": [
+      "GET /config/capabilities": [
         {
           modules: [{ name: "crawl", enabled: true }],
           engines: [{ name: "copilot", enabled: false, reason: "outage" }],
@@ -105,6 +105,7 @@ describe("account", () => {
     });
     const df = client(api);
     const caps = await df.capabilities();
+    expect(api.requests.at(-1)!.url.pathname).toBe("/api/v1/config/capabilities");
     expect(caps.moduleEnabled("crawl")).toBe(true);
     expect(caps.engineEnabled("copilot")).toBe(false);
     expect(caps.engineEnabled("nope")).toBe(false);
