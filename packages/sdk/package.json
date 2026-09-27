@@ -1,0 +1,56 @@
+{
+  "name": "@datafuel/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for the DataFuel scraping API",
+  "license": "MIT",
+  "homepage": "https://datafuel.ai",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.3"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude '**/live.test.ts'",
+    "test:live": "vitest run test/live.test.ts --testTimeout=300000",
+    "prepublishOnly": "npm run typecheck && npm run test && npm run build"
+  },
+  "keywords": [
+    "datafuel",
+    "scraping",
+    "crawler",
+    "web-scraping",
+    "markdown",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Datafuel-ai/datafuel-js.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/Datafuel-ai/datafuel-js/issues"
+  }
+}

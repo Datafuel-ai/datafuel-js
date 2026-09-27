@@ -1,13 +1,13 @@
-# datafuel-js
+# @datafuel/sdk
 
 TypeScript client for the [DataFuel](https://datafuel.ai) scraping API. No runtime dependencies, Node 20.3+.
 
 ```bash
-npm install datafuel
+npm install @datafuel/sdk
 ```
 
 ```ts
-import { DataFuel } from "datafuel";
+import { DataFuel } from "@datafuel/sdk";
 
 const df = new DataFuel(); // or new DataFuel("df_key_..."); reads DATAFUEL_API_KEY
 
@@ -29,7 +29,7 @@ Start with plain `scrape`. Turn on `jsRendering` only when the page comes back e
 ## Scrape
 
 ```ts
-import { DataFuel, Blocked } from "datafuel";
+import { DataFuel, Blocked } from "@datafuel/sdk";
 
 const df = new DataFuel();
 
@@ -132,7 +132,7 @@ An empty `site.links` comes with a `site.reason`. `no_links_on_page` usually mea
 ## Errors
 
 ```ts
-import * as datafuel from "datafuel";
+import * as datafuel from "@datafuel/sdk";
 
 try {
   await df.scrape(url);
