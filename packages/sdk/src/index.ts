@@ -17,6 +17,8 @@
  * | A start URL, many pages | `crawl` / `startCrawl` | `crawl` does |
  * | A list of known URLs | `runJob` / `createJob` | `runJob` does |
  * | A question for an AI engine | `ask` | yes |
+ * | A Google search | `search` | yes |
+ * | Many prompts or searches | `runAskJob` / `runSearchJob` | yes |
  *
  * Start with plain `scrape`. Turn on `jsRendering` only when the page comes
  * back empty: it is slower and costs five times the credits on a Basic proxy.
@@ -27,15 +29,17 @@
 export { DataFuel } from "./client.js";
 export type { ClientOptions } from "./client.js";
 export { DEFAULT_BASE_URL, VERSION } from "./core.js";
-export type { AskOptions, CrawlOptions, MapOptions } from "./core.js";
+export type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
 export {
   APIError,
   Blocked,
   DataFuelError,
   EngineUnavailable,
+  Forbidden,
   IdempotencyKeyReused,
   InsufficientCredits,
   InvalidAttributes,
+  JobNotCancellable,
   ModuleUnavailable,
   NoApiKey,
   NotFound,
@@ -46,10 +50,12 @@ export {
   Unavailable,
   WaitTimeout,
 } from "./errors.js";
+export type { ErrorCode } from "./errors.js";
 export { Capabilities, CrawlPage, isDone, Result } from "./models.js";
 export type {
   AI,
   CallOptions,
+  CancelResult,
   Capability,
   CrawlResult,
   CrawlResultsPage,
@@ -58,10 +64,14 @@ export type {
   Format,
   JobResults,
   JobStatus,
+  JsInstruction,
+  JsInstructionArg,
   Link,
   Payload,
   Profile,
   Proxy,
+  ProxyCountry,
+  ProxyLocation,
   ProxyType,
   ScrapeOptions,
   SiteMap,

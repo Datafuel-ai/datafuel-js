@@ -119,6 +119,42 @@ describe("request building", () => {
     });
   });
 
+  it("sends location for ask", async () => {
+    const api = new Recorder(completed("the answer"));
+    await client(api).ask("best CRM 2026", { engine: "google_ai_mode", location: "Berlin" });
+    expect(api.body.attributes).toEqual({
+      prompt: "best CRM 2026",
+      engine: "google_ai_mode",
+      location: "Berlin",
+    });
+  });
+
+  it("sends the sticky session on a crawl", async () => {
+    const api = new Recorder({ job_id: "crawl-1" });
+    await client(api).startCrawl("https://example.com/docs", {
+      proxy: { type: "Premium", sessionId: "s1", ttl: 300 },
+    });
+    expect(api.body.proxy_type).toBe("Premium");
+    expect(api.body.attributes).toEqual({
+      url: "https://example.com/docs",
+      proxy_session_id: "s1",
+      proxy_ttl: 300,
+    });
+  });
+
+  it("sends the sticky session on a URL job", async () => {
+    const api = new Recorder({ id: "job-1" });
+    await client(api).createJob(["https://a.test", "https://b.test"], {
+      format: "pdf",
+      proxy: { sessionId: "s1" },
+    });
+    expect(api.body.attributes).toEqual({
+      result_format: "pdf",
+      urls: ["https://a.test", "https://b.test"],
+      proxy_session_id: "s1",
+    });
+  });
+
   it("inverts sequential into multithreaded", async () => {
     const api = new Recorder({ id: "job-1" });
     await client(api).createJob(["https://a.test", "https://b.test"], { sequential: true });
