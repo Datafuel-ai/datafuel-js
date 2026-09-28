@@ -23,6 +23,8 @@ const markdown = await df.markdown("https://example.com");
 | A start URL, need many pages | `crawl`, or `startCrawl` + `waitCrawl` + `crawlPages` | `crawl` does  |
 | A list of known URLs         | `runJob`, or `createJob` + `waitJob` + `jobResults`   | `runJob` does |
 | A question for an AI engine  | `ask`                                                 | yes           |
+| A Google search              | `search`                                              | yes           |
+| Many prompts or searches     | `runAskJob` / `runSearchJob`                          | yes           |
 
 Start with plain `scrape`. Turn on `jsRendering` only when the page comes back empty: it is slower and costs five times the credits on a Basic proxy. `map` a section before you `crawl` it, it costs one credit and tells you how big it is.
 
@@ -60,7 +62,9 @@ try {
 
 `res.text` returns html or markdown, `res.data` structured output, `res.image` screenshot bytes.
 
-Page options, shared by `scrape`, jobs and crawls: `format` (`html`, `markdown`, `json`, `png`, `jpeg`), `jsRendering`, `waitFor`, `waitForTimeoutMs`, `jsInstructions`, `blockResource`, `mainContentOnly`, `includeImages`, `extract`, `extractRegex`, `template`, `method`, `body`, `contentType`, `headers`, `headerOrder`, `cookies`, `userAgent`, `userAgentType`, `ai`.
+Page options, shared by `scrape`, jobs and crawls: `format` (`html`, `markdown`, `json`, `png`, `jpeg`, `jpg`, `csv`, `txt`, `pdf`), `jsRendering`, `waitFor`, `waitForTimeoutMs`, `jsInstructions` (an object keyed by action, e.g. `{ click: "#more" }`; `df.jsInstructions()` lists the actions), `blockResource`, `mainContentOnly`, `includeImages`, `extract`, `extractRegex`, `template`, `method`, `body`, `contentType`, `headers`, `headerOrder`, `cookies`, `userAgent`, `userAgentType`, `ai`.
+
+`proxy` takes `type`, `country`, `city`, `state`, `asn`, and a sticky `sessionId` with `ttl` (seconds) on `scrape`, `map`, URL jobs and crawls. `df.proxyLocations()` and `df.proxyAsns(country)` list what a proxy type can exit from.
 
 ## AI after the scrape
 
@@ -108,6 +112,8 @@ Check `stop_reason`: `insufficient_credits` means the crawl ended early. If the 
 
 Unset limits use the API defaults: 100 pages, depth 3, 5 pages in flight.
 
+`df.cancelCrawl(id)` stops a crawl: queued pages are refunded, pages in flight finish and bill. `df.cancelJob(id)` does the same for a job. Both throw `JobNotCancellable` once the work has finished.
+
 ## Jobs
 
 ```ts
@@ -118,7 +124,23 @@ for (const task of results.tasks) {
 }
 ```
 
-`sequential: true` runs the URLs one after the other; the default runs them concurrently, bounded by your account's concurrency limit. `runAskJob(prompts, { engine })` does the same for a batch of prompts.
+`sequential: true` runs the URLs one after the other; the default runs them concurrently, bounded by your account's concurrency limit. `runAskJob(prompts, { engine })` and `runSearchJob(queries)` do the same for a batch of prompts or Google searches. A job needs at least two targets.
+
+## Ask and search
+
+```ts
+const answer = await df.ask("best CRM for a 10-person team", {
+  engine: "perplexity", // openai, gemini, google_ai_mode, perplexity, copilot
+  websearch: true,
+  country: "us",
+});
+console.log(answer.text);
+
+const serp = await df.search("best crm", { country: "us", language: "en", page: 1 });
+console.log(serp.data); // parsed results page; format "html" or "markdown" for the raw page
+```
+
+`search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr`, `filter` and `proxyCountry`.
 
 ## Map
 
@@ -148,7 +170,7 @@ try {
 ```
 
 - `NoApiKey`: no key was passed and `DATAFUEL_API_KEY` is empty. Thrown before any request.
-- `APIError`: the API refused the request. Subclasses: `Unauthorized`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`.
+- `APIError`: the API refused the request. `.code` holds the API's error code (typed as `ErrorCode`). Subclasses: `Unauthorized`, `Forbidden`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`, `JobNotCancellable`.
 - `ModuleUnavailable`, `EngineUnavailable`: an operator switched a task type or LLM engine off, e.g. during a provider outage. The reason is in the message, nothing is charged, and the SDK does not retry. `df.capabilities()` lists what is on.
 - `TaskFailed`, and `Blocked` when the target refused: the API accepted the task but the page could not be scraped. The error carries `.result`, so the envelope is still readable. Failed tasks are refunded.
 - `WaitTimeout`: a wait ran out of time. `.id` picks the work back up.
