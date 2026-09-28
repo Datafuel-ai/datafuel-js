@@ -23,10 +23,9 @@ export function isDone(status: string | undefined): boolean {
  * Shape of the scraped content.
  *
  * `html` raw page (API default), `markdown` cleaned text (best for LLMs),
- * `json` schema.org / JSON-LD, `png` / `jpeg` / `jpg` full-page screenshot,
- * plus `csv`, `txt` and `pdf`.
+ * `json` schema.org / JSON-LD, `png` / `jpeg` full-page screenshot.
  */
-export type Format = "html" | "markdown" | "json" | "png" | "jpeg" | "jpg" | "csv" | "txt" | "pdf";
+export type Format = "html" | "markdown" | "json" | "png" | "jpeg";
 
 /** AI assistant `ask` can query. Engines can be switched off at runtime. */
 export type Engine = "openai" | "gemini" | "google_ai_mode" | "perplexity" | "copilot";

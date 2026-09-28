@@ -62,7 +62,7 @@ try {
 
 `res.text` returns html or markdown, `res.data` structured output, `res.image` screenshot bytes.
 
-Page options, shared by `scrape`, jobs and crawls: `format` (`html`, `markdown`, `json`, `png`, `jpeg`, `jpg`, `csv`, `txt`, `pdf`), `jsRendering`, `waitFor`, `waitForTimeoutMs`, `jsInstructions` (an object keyed by action, e.g. `{ click: "#more" }`; `df.jsInstructions()` lists the actions), `blockResource`, `mainContentOnly`, `includeImages`, `extract`, `extractRegex`, `template`, `method`, `body`, `contentType`, `headers`, `headerOrder`, `cookies`, `userAgent`, `userAgentType`, `ai`.
+Page options, shared by `scrape`, jobs and crawls: `format` (`html`, `markdown`, `json`, `png`, `jpeg`), `jsRendering`, `waitFor`, `waitForTimeoutMs`, `jsInstructions` (an object keyed by action, e.g. `{ click: "#more" }`; `df.jsInstructions()` lists the actions), `blockResource`, `mainContentOnly`, `includeImages`, `extract`, `extractRegex`, `template`, `method`, `body`, `contentType`, `headers`, `headerOrder`, `cookies`, `userAgent`, `userAgentType`, `ai`.
 
 `proxy` takes `type`, `country`, `city`, `state`, `asn`, and a sticky `sessionId` with `ttl` (seconds) on `scrape`, `map`, URL jobs and crawls. `df.proxyLocations()` and `df.proxyAsns(country)` list what a proxy type can exit from.
 

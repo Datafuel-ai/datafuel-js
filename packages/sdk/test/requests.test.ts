@@ -145,11 +145,11 @@ describe("request building", () => {
   it("sends the sticky session on a URL job", async () => {
     const api = new Recorder({ id: "job-1" });
     await client(api).createJob(["https://a.test", "https://b.test"], {
-      format: "pdf",
+      format: "markdown",
       proxy: { sessionId: "s1" },
     });
     expect(api.body.attributes).toEqual({
-      result_format: "pdf",
+      result_format: "markdown",
       urls: ["https://a.test", "https://b.test"],
       proxy_session_id: "s1",
     });
