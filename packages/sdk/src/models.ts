@@ -43,7 +43,8 @@ export interface Proxy {
   asn?: string;
   /**
    * Sticky session: the same exit across requests, `ttl` in seconds. Read by
-   * `scrape` and `map` only, and sent in attributes rather than the envelope.
+   * `scrape`, `map`, URL jobs and crawls, and sent in attributes rather than
+   * the envelope.
    */
   sessionId?: string;
   ttl?: number;
@@ -74,6 +75,7 @@ export interface ScrapeOptions {
   jsRendering?: boolean;
   waitFor?: string;
   waitForTimeoutMs?: number;
+  /** An object keyed by action, e.g. `{ click: "#more" }`. `df.jsInstructions()` lists them. */
   jsInstructions?: unknown;
   blockResource?: string;
   /** Markdown only: always render just the `<main>` / `<article>` container. */
@@ -279,6 +281,9 @@ export interface CrawlStatus {
   total_cost: number;
   /** Whether the crawl reached a final state. */
   done: boolean;
+  /** RFC 3339. */
+  created_at?: string;
+  updated_at?: string;
 }
 
 /** One page of crawl results. */
@@ -305,6 +310,12 @@ export interface JobStatus {
   done: boolean;
 }
 
+/** A cancelled job or crawl: its final progress and what was refunded. */
+export interface CancelResult extends JobStatus {
+  refunded_tasks: number;
+  refunded_credits: number;
+}
+
 /** Every task of a job. A job completes even when some of its tasks failed. */
 export interface JobResults {
   id: string;
@@ -322,6 +333,39 @@ export interface Profile {
   concurrency_limit: number;
   credit_balance: number;
   monthly_credit_limit: number;
+}
+
+/** One argument of a browser action. */
+export interface JsInstructionArg {
+  name: string;
+  type: string;
+  values?: string[];
+  required: boolean;
+}
+
+/** One browser action `jsInstructions` accepts. */
+export interface JsInstruction {
+  action: string;
+  description: string;
+  /** Shape of the value: scalar, array or object. */
+  value: string;
+  args: JsInstructionArg[];
+  /** Whether it can target an element inside an iframe. */
+  iframe: boolean;
+  example: unknown;
+}
+
+/** A named proxy location: a city, or an ASN. */
+export interface ProxyLocation {
+  code: string;
+  name: string;
+}
+
+/** A proxy country with its regions and their cities. */
+export interface ProxyCountry {
+  code: string;
+  name: string;
+  regions: { code: string; name: string; cities: ProxyLocation[] }[];
 }
 
 /** One task type or LLM engine, and whether it accepts new work. */
