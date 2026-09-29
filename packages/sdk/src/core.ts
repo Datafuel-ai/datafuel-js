@@ -12,7 +12,7 @@ import type { AI, Engine, Proxy, ScrapeOptions } from "./models.js";
 export const DEFAULT_BASE_URL = "https://scraping-api.datafuel.ai/api/v1";
 
 /** Kept in step with package.json by a test; see test/hardening.test.ts. */
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 /** How long a synchronous call waits for a result before giving up. */
 export const DEFAULT_TIMEOUT_MS = 180_000;
@@ -30,6 +30,7 @@ export class Request {
     readonly params?: Record<string, string>,
     readonly body?: Record<string, unknown>,
     readonly idempotencyKey?: string,
+    readonly auth: boolean = true,
   ) {}
 
   /** GETs are safe by nature, writes because they carry an idempotency key. */
@@ -75,10 +76,10 @@ export function headers(
   request: Request,
 ): Record<string, string> {
   const out: Record<string, string> = {
-    "X-API-Key": apiKey,
     Accept: "application/json",
     "User-Agent": userAgent,
   };
+  if (apiKey) out["X-API-Key"] = apiKey;
   if (request.body !== undefined) out["Content-Type"] = "application/json";
   if (request.idempotencyKey !== undefined) out["Idempotency-Key"] = request.idempotencyKey;
   return out;
@@ -215,7 +216,7 @@ export function buildJob(
   sequential: boolean,
   idempotencyKey: string,
 ): Request {
-  const attrs = { ...scrapeAttributes(options), urls: [...urls] };
+  const attrs = { ...scrapeAttributes(options), urls: [...urls], ...proxySession(proxy) };
   return new Request(
     "POST",
     "/job",
@@ -231,6 +232,7 @@ export interface AskOptions {
   websearch?: boolean;
   followUp?: string;
   country?: string;
+  location?: string;
   format?: string;
 }
 
@@ -243,6 +245,7 @@ export function askAttributes(
   if (options.websearch) attrs.websearch = true;
   if (options.followUp) attrs.follow_up_prompt = options.followUp;
   if (options.country) attrs.proxy_country = options.country;
+  if (options.location) attrs.location = options.location;
   if (options.format) attrs.result_format = options.format;
   return attrs;
 }
@@ -335,11 +338,109 @@ export function buildCrawl(
   if (options.excludePaths?.length) attrs.exclude_paths = [...options.excludePaths];
   if (options.includeSubdomains) attrs.include_subdomains = true;
   if (options.allowBackwardLinks) attrs.allow_backward_links = true;
+  Object.assign(attrs, proxySession(proxy));
   return new Request(
     "POST",
     "/crawl",
     undefined,
     envelope("crawl", attrs, { proxy }),
+    idempotencyKey,
+  );
+}
+
+/** Options for `search`, the Google SERP module. Proxy type is not used. */
+export interface SearchOptions {
+  /** Google `gl`, e.g. "us". */
+  country?: string;
+  /** Google `hl`, e.g. "en". */
+  language?: string;
+  /** Canonical location name. Give at most one of location, uule, lat/lon. */
+  location?: string;
+  /** 1-based, default 1. */
+  page?: number;
+  /** e.g. "google.de". */
+  googleDomain?: string;
+  uule?: string;
+  lat?: number;
+  lon?: number;
+  /** Metres around lat/lon or location, max 1000. */
+  radius?: number;
+  cr?: string;
+  lr?: string;
+  tbs?: string;
+  safe?: "active" | "off";
+  nfpr?: boolean;
+  filter?: boolean;
+  uds?: string;
+  kgmid?: string;
+  si?: string;
+  ludocid?: string;
+  lsig?: string;
+  ibp?: string;
+  /** Exit country of the request. */
+  proxyCountry?: string;
+  /** Default json. */
+  format?: "json" | "html" | "markdown";
+}
+
+export function searchAttributes(
+  queryField: string,
+  query: string | string[],
+  options: SearchOptions,
+): Record<string, unknown> {
+  const attrs: Record<string, unknown> = { [queryField]: query };
+  const strings: [keyof SearchOptions, string][] = [
+    ["country", "country"],
+    ["language", "language"],
+    ["location", "location"],
+    ["googleDomain", "google_domain"],
+    ["uule", "uule"],
+    ["cr", "cr"],
+    ["lr", "lr"],
+    ["tbs", "tbs"],
+    ["safe", "safe"],
+    ["uds", "uds"],
+    ["kgmid", "kgmid"],
+    ["si", "si"],
+    ["ludocid", "ludocid"],
+    ["lsig", "lsig"],
+    ["ibp", "ibp"],
+    ["proxyCountry", "proxy_country"],
+    ["format", "result_format"],
+  ];
+  for (const [option, attribute] of strings) {
+    if (options[option]) attrs[attribute] = options[option];
+  }
+  if (options.page) attrs.page = options.page;
+  if (options.radius) attrs.radius = options.radius;
+  if (options.lat !== undefined) attrs.lat = options.lat;
+  if (options.lon !== undefined) attrs.lon = options.lon;
+  if (options.nfpr !== undefined) attrs.nfpr = options.nfpr;
+  if (options.filter !== undefined) attrs.filter = options.filter;
+  return attrs;
+}
+
+export function buildSearch(
+  query: string,
+  options: SearchOptions,
+  idempotencyKey: string,
+): Request {
+  const attrs = searchAttributes("query", query, options);
+  return new Request("POST", "/task", undefined, envelope("serp", attrs), idempotencyKey);
+}
+
+export function buildSearchJob(
+  queries: string[],
+  options: SearchOptions,
+  sequential: boolean,
+  idempotencyKey: string,
+): Request {
+  const attrs = searchAttributes("queries", [...queries], options);
+  return new Request(
+    "POST",
+    "/job",
+    undefined,
+    envelope("serp", attrs, { multithreaded: !sequential }),
     idempotencyKey,
   );
 }

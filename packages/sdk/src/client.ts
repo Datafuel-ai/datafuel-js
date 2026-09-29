@@ -1,17 +1,21 @@
 /** The client. It only moves bytes; `core` decides what goes on the wire. */
 
 import * as core from "./core.js";
-import type { AskOptions, CrawlOptions, MapOptions } from "./core.js";
+import type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
 import { apiError, DataFuelError, NoApiKey, TransportError, WaitTimeout } from "./errors.js";
 import type {
   CallOptions,
+  CancelResult,
   Capability,
   CrawlResult,
   CrawlResultsPage,
   CrawlStatus,
   JobResults,
   JobStatus,
+  JsInstruction,
   Profile,
+  ProxyCountry,
+  ProxyLocation,
   ScrapeOptions,
   SiteMap,
 } from "./models.js";
@@ -46,7 +50,8 @@ type Send = CallOptions & { timeoutMs?: number; signal?: AbortSignal };
  *
  * Pick the call by the shape of the work: one URL is {@link scrape}, a site's
  * URL list is {@link map}, many pages from a start URL is {@link crawl}, a list
- * of known URLs is {@link runJob}, a question for an AI engine is {@link ask}.
+ * of known URLs is {@link runJob}, a question for an AI engine is {@link ask}, a
+ * Google search is {@link search}.
  *
  * Every write carries an `Idempotency-Key`, generated per request, so a retry
  * attaches to the task already running instead of charging twice.
@@ -84,7 +89,7 @@ export class DataFuel {
   }
 
   private async send(request: core.Request, opts: Send = {}): Promise<unknown> {
-    if (!this.apiKey) {
+    if (!this.apiKey && request.auth) {
       throw new NoApiKey("no API key: pass one to the client or set DATAFUEL_API_KEY");
     }
     const url = new URL(this.baseUrl + request.path);
@@ -205,6 +210,12 @@ export class DataFuel {
     return this.runTask(request, options);
   }
 
+  /** Run a Google search and return the results page, parsed to JSON by default. */
+  async search(query: string, options: SearchOptions & CallOptions = {}): Promise<Result> {
+    const request = core.buildSearch(query, options, core.key(options.idempotencyKey));
+    return this.runTask(request, options);
+  }
+
   /**
    * List the URLs of a site without scraping them.
    *
@@ -230,6 +241,19 @@ export class DataFuel {
   async startCrawl(url: string, options: CrawlOptions & CallOptions = {}): Promise<string> {
     const request = core.buildCrawl(url, options, options.proxy, core.key(options.idempotencyKey));
     return strField(await this.send(request, options), "job_id");
+  }
+
+  /**
+   * Stop a crawl. Queued pages are refunded, pages in flight finish and bill.
+   * Throws {@link JobNotCancellable} when it already finished.
+   */
+  async cancelCrawl(crawlId: string, options: CallOptions = {}): Promise<CancelResult> {
+    return cancelResult(
+      await this.send(
+        new core.Request("POST", `/crawl/${core.pathSegment(crawlId)}/cancel`),
+        options,
+      ),
+    );
   }
 
   /** Return the progress of a crawl. */
@@ -363,20 +387,35 @@ export class DataFuel {
     return strField(await this.send(request, options), "id");
   }
 
+  /** Queue a batch of Google searches and return the job id. */
+  async createSearchJob(
+    queries: string[],
+    options: SearchOptions & CallOptions & { sequential?: boolean } = {},
+  ): Promise<string> {
+    const request = core.buildSearchJob(
+      queries,
+      options,
+      options.sequential ?? false,
+      core.key(options.idempotencyKey),
+    );
+    return strField(await this.send(request, options), "id");
+  }
+
   /** Return the progress of a job. */
   async getJob(jobId: string, options: CallOptions = {}): Promise<JobStatus> {
-    const body = record(
+    return jobStatus(
       await this.send(new core.Request("GET", `/job/${core.pathSegment(jobId)}`), options),
     );
-    const raw = body as unknown as Partial<JobStatus>;
-    return {
-      status: raw.status as JobStatus["status"],
-      tasks_count: raw.tasks_count ?? 0,
-      tasks_done: raw.tasks_done ?? 0,
-      tasks_remaining: raw.tasks_remaining ?? 0,
-      total_cost: raw.total_cost ?? 0,
-      done: isDone(raw.status),
-    };
+  }
+
+  /**
+   * Stop a job. Queued tasks are refunded, tasks in flight finish and bill.
+   * Throws {@link JobNotCancellable} when it already finished.
+   */
+  async cancelJob(jobId: string, options: CallOptions = {}): Promise<CancelResult> {
+    return cancelResult(
+      await this.send(new core.Request("POST", `/job/${core.pathSegment(jobId)}/cancel`), options),
+    );
   }
 
   /**
@@ -434,13 +473,65 @@ export class DataFuel {
     return this.jobResults(id, options);
   }
 
+  /** Create a search job, wait for it, and return its results. */
+  async runSearchJob(
+    queries: string[],
+    options: SearchOptions & CallOptions & { sequential?: boolean } = {},
+  ): Promise<JobResults> {
+    const id = await this.createSearchJob(queries, options);
+    await this.waitJob(id, options);
+    return this.jobResults(id, options);
+  }
+
   // --- account -----------------------------------------------------------
 
-  /** Which task types and LLM engines are switched on right now. */
+  /** Which task types and LLM engines are switched on right now. Needs no key. */
   async capabilities(options: CallOptions = {}): Promise<Capabilities> {
-    return new Capabilities(
-      record(await this.send(new core.Request("GET", "/capabilities"), options)),
+    const request = new core.Request(
+      "GET",
+      "/config/capabilities",
+      undefined,
+      undefined,
+      undefined,
+      false,
     );
+    return new Capabilities(record(await this.send(request, options)));
+  }
+
+  /** The browser actions `jsInstructions` accepts, with their arguments. Needs no key. */
+  async jsInstructions(options: CallOptions = {}): Promise<JsInstruction[]> {
+    const request = new core.Request(
+      "GET",
+      "/config/js-instructions",
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
+    const body = record(await this.send(request, options));
+    return Array.isArray(body.instructions) ? (body.instructions as JsInstruction[]) : [];
+  }
+
+  /** Countries, regions and cities a proxy type can exit from. */
+  async proxyLocations(
+    options: CallOptions & { proxyType?: string } = {},
+  ): Promise<ProxyCountry[]> {
+    const params = options.proxyType ? { proxy_type: options.proxyType } : undefined;
+    return list(
+      await this.send(new core.Request("GET", "/config/proxy/locations", params), options),
+    ) as ProxyCountry[];
+  }
+
+  /** ASNs a proxy type can exit from in one country (ISO 3166-1 alpha-2). */
+  async proxyAsns(
+    country: string,
+    options: CallOptions & { proxyType?: string } = {},
+  ): Promise<ProxyLocation[]> {
+    const params: Record<string, string> = { country };
+    if (options.proxyType) params.proxy_type = options.proxyType;
+    return list(
+      await this.send(new core.Request("GET", "/config/proxy/asn", params), options),
+    ) as ProxyLocation[];
   }
 
   /** Remaining credits. */
@@ -502,6 +593,34 @@ function record(body: unknown): Record<string, unknown> {
     throw new DataFuelError(`unexpected answer from the API: ${JSON.stringify(body) ?? "empty"}`);
   }
   return body as Record<string, unknown>;
+}
+
+function list(body: unknown): unknown[] {
+  if (!Array.isArray(body)) {
+    throw new DataFuelError(`unexpected answer from the API: ${JSON.stringify(body) ?? "empty"}`);
+  }
+  return body;
+}
+
+function jobStatus(body: unknown): JobStatus {
+  const raw = record(body) as unknown as Partial<JobStatus>;
+  return {
+    status: raw.status as JobStatus["status"],
+    tasks_count: raw.tasks_count ?? 0,
+    tasks_done: raw.tasks_done ?? 0,
+    tasks_remaining: raw.tasks_remaining ?? 0,
+    total_cost: raw.total_cost ?? 0,
+    done: isDone(raw.status),
+  };
+}
+
+function cancelResult(body: unknown): CancelResult {
+  const raw = record(body) as unknown as Partial<CancelResult>;
+  return {
+    ...jobStatus(body),
+    refunded_tasks: raw.refunded_tasks ?? 0,
+    refunded_credits: raw.refunded_credits ?? 0,
+  };
 }
 
 function field(body: unknown, name: string): unknown {

@@ -1,6 +1,6 @@
 {
   "name": "@datafuel/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript client for the DataFuel scraping API",
   "license": "MIT",
   "homepage": "https://datafuel.ai",
