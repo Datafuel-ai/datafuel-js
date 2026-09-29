@@ -4,6 +4,8 @@ import * as core from "./core.js";
 import type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
 import { apiError, DataFuelError, NoApiKey, TransportError, WaitTimeout } from "./errors.js";
 import type {
+  Analytics,
+  AnalyticsOptions,
   CallOptions,
   CancelResult,
   Capability,
@@ -11,13 +13,21 @@ import type {
   CrawlResultsPage,
   CrawlStatus,
   JobResults,
+  JobsPage,
   JobStatus,
+  JobSummary,
   JsInstruction,
+  ListOptions,
+  ListTasksOptions,
   Profile,
   ProxyCountry,
   ProxyLocation,
   ScrapeOptions,
   SiteMap,
+  TasksPage,
+  TaskSummary,
+  TransactionsOptions,
+  TransactionsPage,
 } from "./models.js";
 import { Capabilities, CrawlPage, isDone, Result } from "./models.js";
 
@@ -438,6 +448,35 @@ export class DataFuel {
     };
   }
 
+  /** One page of your jobs and crawls, newest first. Pass `nextCursor` back as `cursor`. */
+  async listJobs(options: ListOptions & CallOptions = {}): Promise<JobsPage> {
+    const body = record(await this.send(core.listJobsRequest(options), options));
+    const next = typeof body.next_cursor === "string" ? body.next_cursor : undefined;
+    return {
+      jobs: array(body.jobs).map((raw) => {
+        const job = record(raw) as unknown as JobSummary;
+        return { ...job, ...jobStatus(job) };
+      }),
+      ...(next ? { nextCursor: next } : {}),
+    };
+  }
+
+  /**
+   * One page of your tasks, newest first, including those of jobs and crawls.
+   * Items carry no result: fetch it with {@link getTask}.
+   */
+  async listTasks(options: ListTasksOptions & CallOptions = {}): Promise<TasksPage> {
+    const body = record(await this.send(core.listTasksRequest(options), options));
+    const next = typeof body.next_cursor === "string" ? body.next_cursor : undefined;
+    return {
+      tasks: array(body.tasks).map((raw) => {
+        const task = record(raw) as unknown as TaskSummary;
+        return { ...task, job_id: task.job_id ?? null };
+      }),
+      ...(next ? { nextCursor: next } : {}),
+    };
+  }
+
   /** Poll until the job is done. Without `timeoutMs` it waits indefinitely. */
   async waitJob(jobId: string, options: CallOptions = {}): Promise<JobStatus> {
     // The timeout bounds the whole wait, not each poll.
@@ -540,6 +579,31 @@ export class DataFuel {
     return intField(body, "balance");
   }
 
+  /**
+   * Credit movements, newest first: purchases, usage, refunds, expiry.
+   * `sums` totals each operation over the whole range, not just this page.
+   */
+  async transactions(options: TransactionsOptions & CallOptions = {}): Promise<TransactionsPage> {
+    const body = record(await this.send(core.transactionsRequest(options), options));
+    return {
+      transactions: array(body.transactions) as TransactionsPage["transactions"],
+      total_count: Number(body.total_count ?? 0),
+      sums: array(body.sums) as TransactionsPage["sums"],
+    };
+  }
+
+  /** Usage over a date range: totals, a time series and breakdowns. Default: the last 30 days. */
+  async analytics(options: AnalyticsOptions & CallOptions = {}): Promise<Analytics> {
+    const body = record(await this.send(core.analyticsRequest(options), options));
+    return {
+      ...(body as unknown as Analytics),
+      timeseries: array(body.timeseries) as Analytics["timeseries"],
+      by_module: array(body.by_module) as Analytics["by_module"],
+      top_targets: array(body.top_targets) as Analytics["top_targets"],
+      by_status_code: array(body.by_status_code) as Analytics["by_status_code"],
+    };
+  }
+
   /** The account behind the API key. */
   async me(options: CallOptions = {}): Promise<Profile> {
     const body = await this.send(new core.Request("GET", "/users/@me"), options);
@@ -600,6 +664,10 @@ function list(body: unknown): unknown[] {
     throw new DataFuelError(`unexpected answer from the API: ${JSON.stringify(body) ?? "empty"}`);
   }
   return body;
+}
+
+function array(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function jobStatus(body: unknown): JobStatus {
