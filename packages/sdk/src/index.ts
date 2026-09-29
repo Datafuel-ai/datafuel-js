@@ -19,6 +19,7 @@
  * | A question for an AI engine | `ask` | yes |
  * | A Google search | `search` | yes |
  * | Many prompts or searches | `runAskJob` / `runSearchJob` | yes |
+ * | Earlier jobs, tasks, usage | `listJobs` / `listTasks` / `analytics` / `transactions` | yes |
  *
  * Start with plain `scrape`. Turn on `jsRendering` only when the page comes
  * back empty: it is slower and costs five times the credits on a Basic proxy.
@@ -54,6 +55,9 @@ export type { ErrorCode } from "./errors.js";
 export { Capabilities, CrawlPage, isDone, Result } from "./models.js";
 export type {
   AI,
+  Analytics,
+  AnalyticsCounts,
+  AnalyticsOptions,
   CallOptions,
   CancelResult,
   Capability,
@@ -63,10 +67,14 @@ export type {
   Engine,
   Format,
   JobResults,
+  JobsPage,
   JobStatus,
+  JobSummary,
   JsInstruction,
   JsInstructionArg,
   Link,
+  ListOptions,
+  ListTasksOptions,
   Payload,
   Profile,
   Proxy,
@@ -74,6 +82,16 @@ export type {
   ProxyLocation,
   ProxyType,
   ScrapeOptions,
+  PreviousPeriod,
   SiteMap,
   Status,
+  StatusCodeBreakdown,
+  TasksPage,
+  TaskSummary,
+  TaskType,
+  Transaction,
+  TransactionOperation,
+  TransactionsOptions,
+  TransactionsPage,
+  TransactionSum,
 } from "./models.js";

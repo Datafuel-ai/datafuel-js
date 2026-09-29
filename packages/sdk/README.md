@@ -16,15 +16,16 @@ const markdown = await df.markdown("https://example.com");
 
 ## Pick the call
 
-| You have                     | Call                                                  | Waits?        |
-| ---------------------------- | ----------------------------------------------------- | ------------- |
-| One URL                      | `scrape` / `markdown`                                 | yes           |
-| A site, need its URL list    | `map`                                                 | yes           |
-| A start URL, need many pages | `crawl`, or `startCrawl` + `waitCrawl` + `crawlPages` | `crawl` does  |
-| A list of known URLs         | `runJob`, or `createJob` + `waitJob` + `jobResults`   | `runJob` does |
-| A question for an AI engine  | `ask`                                                 | yes           |
-| A Google search              | `search`                                              | yes           |
-| Many prompts or searches     | `runAskJob` / `runSearchJob`                          | yes           |
+| You have                     | Call                                                    | Waits?        |
+| ---------------------------- | ------------------------------------------------------- | ------------- |
+| One URL                      | `scrape` / `markdown`                                   | yes           |
+| A site, need its URL list    | `map`                                                   | yes           |
+| A start URL, need many pages | `crawl`, or `startCrawl` + `waitCrawl` + `crawlPages`   | `crawl` does  |
+| A list of known URLs         | `runJob`, or `createJob` + `waitJob` + `jobResults`     | `runJob` does |
+| A question for an AI engine  | `ask`                                                   | yes           |
+| A Google search              | `search`                                                | yes           |
+| Many prompts or searches     | `runAskJob` / `runSearchJob`                            | yes           |
+| Earlier jobs, tasks, usage   | `listJobs` / `listTasks` / `analytics` / `transactions` | yes           |
 
 Start with plain `scrape`. Turn on `jsRendering` only when the page comes back empty: it is slower and costs five times the credits on a Basic proxy. `map` a section before you `crawl` it, it costs one credit and tells you how big it is.
 
@@ -150,6 +151,19 @@ for (const link of site.links) console.log(link.url);
 ```
 
 An empty `site.links` comes with a `site.reason`. `no_links_on_page` usually means the navigation is rendered client-side.
+
+## Usage and history
+
+```ts
+const usage = await df.analytics({ startDate: "2026-09-01", endDate: "2026-09-30" });
+console.log(usage.summary.success_rate, usage.summary.avg_credits_per_request);
+
+const { jobs, nextCursor } = await df.listJobs({ type: "crawl", limit: 20 });
+const failed = await df.listTasks({ jobId: jobs[0]!.id, status: "failed" });
+const history = await df.transactions({ operation: "refund", limit: 50 });
+```
+
+`listJobs` and `listTasks` run newest first; pass `nextCursor` back as `cursor` until it is absent. Task items carry no result: call `getTask(id)` for it. Dates are `YYYY-MM-DD` in UTC (a `Date` is sent as its UTC day) and `endDate` is inclusive. `transactions` pages with `page` and `limit`, and its `sums` total each operation over the whole range. In `analytics`, `status_code` 0 means the target never answered (timeout, DNS).
 
 ## Errors
 

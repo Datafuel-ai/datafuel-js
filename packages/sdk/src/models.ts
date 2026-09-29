@@ -325,6 +325,189 @@ export interface JobResults {
   tasks: Result[];
 }
 
+/** A task type, as the list and analytics filters take it. */
+export type TaskType = "unlocker" | "llm_scraping" | "serp" | "map" | "crawl" | (string & {});
+
+/** Filters shared by {@link DataFuel.listJobs} and {@link DataFuel.listTasks}. */
+export interface ListOptions {
+  status?: Status;
+  type?: TaskType;
+  /** Created on or after this day (UTC). A Date is sent as its UTC day. */
+  startDate?: string | Date;
+  /** Created on or before this day (UTC, inclusive). */
+  endDate?: string | Date;
+  /** Items per page. API default 50, max 200. */
+  limit?: number;
+  /** `nextCursor` of the previous page. */
+  cursor?: string;
+}
+
+/** {@link ListOptions} plus the job or crawl the tasks belong to. */
+export interface ListTasksOptions extends ListOptions {
+  jobId?: string;
+}
+
+/** A job or crawl in a list, with the same counters as {@link JobStatus}. */
+export interface JobSummary extends JobStatus {
+  id: string;
+  /** `crawl` for a crawl, otherwise the task type of the batch. */
+  type: TaskType;
+  /** RFC 3339. */
+  created_at: string;
+  updated_at: string;
+}
+
+/** One page of jobs, newest first. */
+export interface JobsPage {
+  jobs: JobSummary[];
+  /** Absent on the last page. */
+  nextCursor?: string;
+}
+
+/** A task in a list. It has no result: fetch that with {@link DataFuel.getTask}. */
+export interface TaskSummary {
+  id: string;
+  /** `null` for a task created on its own rather than by a job or crawl. */
+  job_id: string | null;
+  type: TaskType;
+  status: Status;
+  /** Absent for `llm_scraping` and `serp`. */
+  url?: string;
+  /** Charged when queued; a failed task is refunded. */
+  credit_cost: number;
+  /** RFC 3339. */
+  created_at: string;
+  processed_at?: string;
+  failed_at?: string;
+}
+
+/** One page of tasks, newest first. */
+export interface TasksPage {
+  tasks: TaskSummary[];
+  /** Absent on the last page. */
+  nextCursor?: string;
+}
+
+/** What moved credits on the account. */
+export type TransactionOperation =
+  | "plan_assignment"
+  | "purchase"
+  | "usage"
+  | "refund"
+  | "topup"
+  | "expiry"
+  | "adjustment"
+  | (string & {});
+
+/** Filters and paging for {@link DataFuel.transactions}. */
+export interface TransactionsOptions {
+  operation?: TransactionOperation;
+  startDate?: string | Date;
+  endDate?: string | Date;
+  /** 1-based. API default 1. */
+  page?: number;
+  /** API default 10, max 200. */
+  limit?: number;
+}
+
+/** One credit movement. `amount` is negative for usage and expiry. */
+export interface Transaction {
+  id: number;
+  amount: number;
+  operation: TransactionOperation;
+  /** What `reference_id` points to, e.g. `task_id` or `job_id`. */
+  reference_type: string;
+  reference_id: string;
+  /** The balance right after this movement. */
+  balance_after?: number;
+  /** RFC 3339. */
+  created_at: string;
+}
+
+/** Total of one operation over the whole filtered range, not just the page. */
+export interface TransactionSum {
+  operation: TransactionOperation;
+  total: number;
+  count: number;
+}
+
+/** One page of credit movements, newest first. */
+export interface TransactionsPage {
+  transactions: Transaction[];
+  /** Movements matching the filters across all pages. */
+  total_count: number;
+  sums: TransactionSum[];
+}
+
+/** Range and grouping for {@link DataFuel.analytics}. */
+export interface AnalyticsOptions {
+  /** API default 30 days ago. The range may span at most 365 days. */
+  startDate?: string | Date;
+  /** Inclusive. API default today. */
+  endDate?: string | Date;
+  /** Time series bucket. API default `daily`. */
+  interval?: "hourly" | "daily" | "weekly" | "monthly";
+  /** Restrict to one task type. */
+  module?: TaskType;
+}
+
+/** Task counts and net credits of one slice. Failed tasks are refunded and count 0 credits. */
+export interface AnalyticsCounts {
+  total: number;
+  completed: number;
+  failed: number;
+  credits_used: number;
+}
+
+/** Tasks by the HTTP status the target answered. `status_code` 0 means no answer (timeout, DNS). */
+export interface StatusCodeBreakdown {
+  status_code: number;
+  count: number;
+  completed: number;
+  failed: number;
+  credits_used: number;
+  avg_credits_per_request: number;
+}
+
+/** The same figures for the equally long period before, and the change in percent. */
+export interface PreviousPeriod {
+  credits_used: number;
+  fulfilled_requests: number;
+  failed_requests: number;
+  failed_percentage: number;
+  efficiency_score: number;
+  credits_used_change: number;
+  fulfilled_requests_change: number;
+  failed_requests_change: number;
+  efficiency_score_change: number;
+}
+
+/** Usage over a date range. Percentages are 0-100. */
+export interface Analytics {
+  summary: {
+    total_tasks: number;
+    credits_used: number;
+    fulfilled_requests: number;
+    failed_requests: number;
+    failed_percentage: number;
+    success_rate: number;
+    efficiency_score: number;
+    avg_credits_per_request: number;
+    avg_duration_ms: number;
+    previous_period?: PreviousPeriod | null;
+  };
+  timeseries: (AnalyticsCounts & { period: string })[];
+  by_module: (AnalyticsCounts & {
+    module: string;
+    success_rate: number;
+    avg_credits_per_request: number;
+    avg_duration_ms: number;
+    status_codes: StatusCodeBreakdown[];
+  })[];
+  top_targets: (AnalyticsCounts & { target: string })[];
+  by_status_code: StatusCodeBreakdown[];
+}
+
 /** The account behind the API key. */
 export interface Profile {
   email: string;

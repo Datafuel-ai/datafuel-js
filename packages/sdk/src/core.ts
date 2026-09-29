@@ -7,7 +7,16 @@
  */
 
 import { APIError, Unavailable } from "./errors.js";
-import type { AI, Engine, Proxy, ScrapeOptions } from "./models.js";
+import type {
+  AI,
+  AnalyticsOptions,
+  Engine,
+  ListOptions,
+  ListTasksOptions,
+  Proxy,
+  ScrapeOptions,
+  TransactionsOptions,
+} from "./models.js";
 
 export const DEFAULT_BASE_URL = "https://scraping-api.datafuel.ai/api/v1";
 
@@ -454,6 +463,64 @@ export function crawlResultsRequest(crawlId: string, cursor?: string, limit?: nu
     `/crawl/${pathSegment(crawlId)}/results`,
     Object.keys(params).length > 0 ? params : undefined,
   );
+}
+
+/** A Date as its UTC day, which is what the API's date filters take. */
+export function day(value: string | Date): string {
+  return typeof value === "string" ? value : value.toISOString().slice(0, 10);
+}
+
+function query(
+  entries: [string, string | number | Date | undefined][],
+): Record<string, string> | undefined {
+  const params: Record<string, string> = {};
+  for (const [name, value] of entries) {
+    if (value === undefined || value === "") continue;
+    params[name] = value instanceof Date ? day(value) : String(value);
+  }
+  return Object.keys(params).length > 0 ? params : undefined;
+}
+
+function listRequest(path: string, options: ListOptions, jobId?: string): Request {
+  const params = query([
+    ["status", options.status],
+    ["type", options.type],
+    ["job_id", jobId],
+    ["start_date", options.startDate],
+    ["end_date", options.endDate],
+    ["limit", options.limit],
+    ["cursor", options.cursor],
+  ]);
+  return new Request("GET", path, params);
+}
+
+export function listJobsRequest(options: ListOptions): Request {
+  return listRequest("/job", options);
+}
+
+export function listTasksRequest(options: ListTasksOptions): Request {
+  return listRequest("/task", options, options.jobId);
+}
+
+export function transactionsRequest(options: TransactionsOptions): Request {
+  const params = query([
+    ["operation", options.operation],
+    ["start_date", options.startDate],
+    ["end_date", options.endDate],
+    ["page", options.page],
+    ["limit", options.limit],
+  ]);
+  return new Request("GET", "/users/@me/transactions", params);
+}
+
+export function analyticsRequest(options: AnalyticsOptions): Request {
+  const params = query([
+    ["start_date", options.startDate],
+    ["end_date", options.endDate],
+    ["interval", options.interval],
+    ["module", options.module],
+  ]);
+  return new Request("GET", "/task/analytics/dashboard", params);
 }
 
 /** Whether the API answered "the task is still running" instead of a result. */
