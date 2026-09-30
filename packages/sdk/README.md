@@ -217,7 +217,7 @@ Keep `timeoutMs` generous: `scrape` waits until the page is ready, which can tak
 
 If you pass your own `fetch`, leave redirects off. fetch keeps custom headers across a redirect, so a redirect to another host would carry your `X-API-Key` to it. This SDK sends `redirect: "manual"`.
 
-Full API reference: https://scraping-api.datafuel.ai/docs
+Full API reference and guides: https://docs.datafuel.ai
 
 ## MCP
 
