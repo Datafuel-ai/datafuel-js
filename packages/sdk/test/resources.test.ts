@@ -100,8 +100,15 @@ describe("account", () => {
           engines: [{ name: "copilot", enabled: false, reason: "outage" }],
         },
       ],
-      "GET /users/@me/balance": [{ balance: 4200 }],
-      "GET /users/@me": [{ email: "a@b.test", credit_balance: 4200 }],
+      "GET /users/@me/balance": [{ balance: 4200, plan_balance: 3200, payg_balance: 1000 }],
+      "GET /users/@me": [
+        {
+          email: "a@b.test",
+          credit_balance: 4200,
+          plan_credit_balance: 3200,
+          payg_credit_balance: 1000,
+        },
+      ],
     });
     const df = client(api);
     const caps = await df.capabilities();
@@ -110,7 +117,17 @@ describe("account", () => {
     expect(caps.engineEnabled("copilot")).toBe(false);
     expect(caps.engineEnabled("nope")).toBe(false);
     await expect(df.balance()).resolves.toBe(4200);
-    await expect(df.me()).resolves.toMatchObject({ email: "a@b.test" });
+    await expect(df.balanceSplit()).resolves.toEqual({
+      balance: 4200,
+      plan_balance: 3200,
+      payg_balance: 1000,
+    });
+    expect(api.requests.at(-1)!.url.pathname).toBe("/api/v1/users/@me/balance");
+    await expect(df.me()).resolves.toMatchObject({
+      email: "a@b.test",
+      plan_credit_balance: 3200,
+      payg_credit_balance: 1000,
+    });
   });
 });
 
@@ -342,6 +359,7 @@ describe("usage", () => {
             {
               id: 1,
               amount: 100,
+              plan_amount: 60,
               operation: "refund",
               reference_type: "task_id",
               reference_id: "t1",
@@ -368,6 +386,7 @@ describe("usage", () => {
       limit: "50",
     });
     expect(history.transactions[0]!.balance_after).toBe(4820);
+    expect(history.transactions[0]!.plan_amount).toBe(60);
     expect(history.sums).toEqual([{ operation: "refund", total: 100, count: 1 }]);
 
     const usage = await df.analytics({ interval: "weekly", module: "unlocker" });

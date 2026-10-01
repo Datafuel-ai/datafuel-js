@@ -66,6 +66,11 @@ describe("surprising answers", () => {
     await expect(client(api).balance()).rejects.toThrow(/not a number/);
   });
 
+  it("rejects a balance split without the pools", async () => {
+    const api = new Recorder({ balance: 10 });
+    await expect(client(api).balanceSplit()).rejects.toThrow(/no plan_balance field/);
+  });
+
   it("rejects a garbage task body", async () => {
     const api = new Recorder(new Response(JSON.stringify(["not", "a", "task"]), { status: 200 }));
     await expect(client(api).scrape("https://example.com")).rejects.toThrow(/unexpected answer/);

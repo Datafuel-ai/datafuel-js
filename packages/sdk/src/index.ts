@@ -58,6 +58,7 @@ export type {
   Analytics,
   AnalyticsCounts,
   AnalyticsOptions,
+  BalanceSplit,
   CallOptions,
   CancelResult,
   Capability,
