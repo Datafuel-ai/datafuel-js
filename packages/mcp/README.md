@@ -128,7 +128,7 @@ Clients that speak streamable HTTP should connect to the URL directly with an `X
 
 ## Manual setup
 
-To configure a client by hand, or one this tool does not know, see the [AI agents and MCP guide](https://help.datafuel.ai/articles/8421667-use-datafuel-from-ai-agents-and-ides). Full API reference: https://scraping-api.datafuel.ai/docs
+To configure a client by hand, or one this tool does not know, see the [AI agents and MCP guide](https://docs.datafuel.ai/scraping-api/mcp). Guides and the full API reference: https://docs.datafuel.ai
 
 ## License
 
