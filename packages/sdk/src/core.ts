@@ -42,11 +42,16 @@ export class Request {
     readonly auth: boolean = true,
     /** A 503 that carries a health report is an answer, not an error. */
     readonly degradedOk: boolean = false,
+    /** A write the API treats as a no-op when repeated, e.g. a cancel. */
+    readonly idempotent: boolean = false,
   ) {}
 
-  /** GETs are safe by nature, writes because they carry an idempotency key. */
+  /**
+   * GETs are safe by nature, writes when they carry an idempotency key or
+   * repeating them changes nothing.
+   */
   get retryable(): boolean {
-    return this.method === "GET" || this.idempotencyKey !== undefined;
+    return this.method === "GET" || this.idempotencyKey !== undefined || this.idempotent;
   }
 
   /**
@@ -460,6 +465,12 @@ export function crawlResultsRequest(crawlId: string, cursor?: string, limit?: nu
     `/crawl/${pathSegment(crawlId)}/results`,
     Object.keys(params).length > 0 ? params : undefined,
   );
+}
+
+/** Cancelling a cancelled job is a no-op, so a cancel is safe to retry. */
+export function cancelRequest(kind: "job" | "crawl", jobId: string): Request {
+  const path = `/${kind}/${pathSegment(jobId)}/cancel`;
+  return new Request("POST", path, undefined, undefined, undefined, true, false, true);
 }
 
 export function healthRequest(deep: boolean): Request {

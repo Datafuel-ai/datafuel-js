@@ -27,7 +27,6 @@ export class TransportError extends DataFuelError {}
 /** The `code` of an API error. The API may add codes; unknown ones pass through. */
 export type ErrorCode =
   | "UNAUTHORIZED"
-  | "INVALID_API_KEY"
   | "FORBIDDEN"
   | "INSUFFICIENT_CREDITS"
   | "RATE_LIMIT_EXCEEDED"
@@ -159,7 +158,6 @@ const BY_CODE: Record<string, new (s: number, c: string, m: string, r?: number) 
   INSUFFICIENT_CREDITS: InsufficientCredits,
   INVALID_ATTRIBUTES: InvalidAttributes,
   IDEMPOTENCY_KEY_REUSED: IdempotencyKeyReused,
-  INVALID_API_KEY: Unauthorized,
   FORBIDDEN: Forbidden,
   JOB_NOT_CANCELLABLE: JobNotCancellable,
   TASK_ALREADY_EXISTS: AlreadyExists,

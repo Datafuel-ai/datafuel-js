@@ -202,6 +202,13 @@ describe("cancel", () => {
     expect(result).toMatchObject({ status: "cancelled", done: true, refunded_credits: 6 });
   });
 
+  it("retries a cancel, since cancelling twice is a no-op", async () => {
+    const api = new Recorder(errorResponse(503, "INTERNAL_ERROR"), cancelled);
+    const result = await client(api).cancelJob("job-1");
+    expect(api.requests).toHaveLength(2);
+    expect(result.refunded_tasks).toBe(6);
+  });
+
   it("cancels a crawl", async () => {
     const api = new Router({ "POST /crawl/*/cancel": [cancelled] });
     const result = await client(api).cancelCrawl("crawl-1");
@@ -454,5 +461,32 @@ describe("usage", () => {
       .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(datafuel.APIError);
     expect((error as datafuel.APIError).code).toBe("INVALID_QUERY_PARAM");
+  });
+});
+
+describe("waitTask", () => {
+  it("polls a running task until it is done", async () => {
+    const running = new Response(
+      JSON.stringify({ id: "task-9", code: "TASK_STILL_PROCESSING", message: "wait" }),
+      { status: 202, headers: { "Content-Type": "application/json" } },
+    );
+    const api = new Router({ "GET /task/*": [running, completed("done")] });
+    const res = await client(api).waitTask("task-9");
+    expect(res.text).toBe("done");
+    expect(api.requests).toHaveLength(2);
+  });
+
+  it("throws WaitTimeout with the task id when it runs out of time", async () => {
+    const running = () =>
+      new Response(JSON.stringify({ code: "TASK_STILL_PROCESSING" }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      });
+    const api = new Router({ "GET /task/*": [running(), running()] });
+    const error = await client(api)
+      .waitTask("task-9", { timeoutMs: 1 })
+      .catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(datafuel.WaitTimeout);
+    expect((error as datafuel.WaitTimeout).id).toBe("task-9");
   });
 });

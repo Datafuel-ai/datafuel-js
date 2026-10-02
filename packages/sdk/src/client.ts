@@ -218,6 +218,24 @@ export class DataFuel {
     return result;
   }
 
+  /**
+   * Poll a task until it is done. Without `timeoutMs` it waits indefinitely.
+   * Throws {@link TaskFailed} or {@link Blocked} when the task failed.
+   */
+  async waitTask(taskId: string, options: CallOptions = {}): Promise<Result> {
+    // The timeout bounds the whole wait, not each poll.
+    const { timeoutMs, ...perPoll } = options;
+    const deadline = timeoutMs === undefined ? null : Date.now() + timeoutMs;
+    for (;;) {
+      const result = await this.getTask(taskId, perPoll);
+      if (!result.pending) return result;
+      if (deadline !== null && Date.now() + this.pollIntervalMs >= deadline) {
+        throw new WaitTimeout(`task ${taskId} is still running`, taskId, result);
+      }
+      await this.sleep(this.pollIntervalMs);
+    }
+  }
+
   /** Send a prompt to an AI engine and return its answer. */
   async ask(prompt: string, options: AskOptions & CallOptions): Promise<Result> {
     const request = core.buildAsk(prompt, options, core.key(options.idempotencyKey));
@@ -262,12 +280,7 @@ export class DataFuel {
    * Throws {@link JobNotCancellable} when it already finished.
    */
   async cancelCrawl(crawlId: string, options: CallOptions = {}): Promise<CancelResult> {
-    return cancelResult(
-      await this.send(
-        new core.Request("POST", `/crawl/${core.pathSegment(crawlId)}/cancel`),
-        options,
-      ),
-    );
+    return cancelResult(await this.send(core.cancelRequest("crawl", crawlId), options));
   }
 
   /** Return the progress of a crawl. */
@@ -427,9 +440,7 @@ export class DataFuel {
    * Throws {@link JobNotCancellable} when it already finished.
    */
   async cancelJob(jobId: string, options: CallOptions = {}): Promise<CancelResult> {
-    return cancelResult(
-      await this.send(new core.Request("POST", `/job/${core.pathSegment(jobId)}/cancel`), options),
-    );
+    return cancelResult(await this.send(core.cancelRequest("job", jobId), options));
   }
 
   /**

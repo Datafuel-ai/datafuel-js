@@ -179,7 +179,7 @@ const failed = await df.listTasks({ jobId: jobs[0]!.id, status: "failed" });
 const history = await df.transactions({ operation: "refund", limit: 50 });
 ```
 
-`listJobs` and `listTasks` run newest first; pass `nextCursor` back as `cursor` until it is absent. Task items carry no result: call `getTask(id)` for it. Dates are `YYYY-MM-DD` in UTC (a `Date` is sent as its UTC day) and `endDate` is inclusive. `transactions` pages with `page` and `limit`, and its `sums` total each operation over the whole range. In `analytics`, `status_code` 0 means the target never answered (timeout, DNS).
+`listJobs` and `listTasks` run newest first; pass `nextCursor` back as `cursor` until it is absent. Task items carry no result: call `getTask(id)` for it, or `waitTask(id)` to poll until it is done. Dates are `YYYY-MM-DD` in UTC (a `Date` is sent as its UTC day) and `endDate` is inclusive. `transactions` pages with `page` and `limit`, and its `sums` total each operation over the whole range. In `analytics`, `status_code` 0 means the target never answered (timeout, DNS).
 
 ```ts
 const credits = await df.balance();
