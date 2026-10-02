@@ -93,8 +93,7 @@ const res = await df.scrape(url, {
   ai: {
     prompt: "extract the product name and its price",
     format: { name: "string", price: "number" },
-    provider: "openai", // openai, anthropic, google
-    model: "gpt-4o", // optional; df.aiProviders() lists the models
+    provider: "openai", // required; df.aiProviders() lists the providers and their models
     apiKey: process.env.OPENAI_API_KEY,
   },
 });

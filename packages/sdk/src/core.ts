@@ -114,7 +114,7 @@ function aiAttributes(ai: AI): Record<string, unknown> {
 /** The API answers 400 INVALID_ATTRIBUTES without a provider; say so before sending. */
 export function validateAI(ai: AI): void {
   if (!ai.provider) {
-    throw new TypeError("ai needs a provider: openai, anthropic or google");
+    throw new TypeError("ai needs a provider; aiProviders() lists the ones the API supports");
   }
 }
 

@@ -60,8 +60,8 @@ export interface AI {
   prompt?: string;
   /** Example JSON object the output must follow. */
   format?: unknown;
-  /** Required: the API answers 400 INVALID_ATTRIBUTES without it. */
-  provider?: "openai" | "anthropic" | "google";
+  /** Required. One of the providers `df.aiProviders()` lists; the API answers 400 INVALID_ATTRIBUTES without it. */
+  provider?: string;
   /** One of the models `df.aiProviders()` lists for `provider`. Omit for the provider's default. */
   model?: string;
   apiKey?: string;
