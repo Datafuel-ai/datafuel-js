@@ -56,7 +56,7 @@ describe("request building", () => {
         prompt: "extract name and price",
         format: { name: "string" },
         provider: "openai",
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         apiKey: "sk-secret",
       },
     });
@@ -66,7 +66,7 @@ describe("request building", () => {
       result_ai_prompt: "extract name and price",
       result_ai_format: { name: "string" },
       ai_provider: "openai",
-      ai_model: "gpt-4o-mini",
+      ai_model: "gpt-4o",
       ai_api_key: "sk-secret",
     });
     expect(res.data).toEqual({ name: "Widget", price: 9.99 });
@@ -75,7 +75,7 @@ describe("request building", () => {
   it("refuses ai on a crawl before sending", async () => {
     const api = new Recorder(completed());
     await expect(
-      client(api).startCrawl("https://example.com", { ai: { prompt: "x" } }),
+      client(api).startCrawl("https://example.com", { ai: { prompt: "x", provider: "openai" } }),
     ).rejects.toThrow(/result_use_ai/);
     expect(api.requests).toHaveLength(0);
   });
@@ -96,6 +96,44 @@ describe("request building", () => {
         proxy_country: "us",
       },
     });
+  });
+
+  it("leaves an unset ai model out", async () => {
+    const api = new Recorder(completed({ name: "Widget" }));
+    await client(api).scrape("https://example.com", {
+      ai: { prompt: "p", provider: "anthropic", apiKey: "sk" },
+    });
+    expect(api.body.attributes).toEqual({
+      url: "https://example.com",
+      result_use_ai: true,
+      result_ai_prompt: "p",
+      ai_provider: "anthropic",
+      ai_api_key: "sk",
+    });
+  });
+
+  it("sends js instructions as an ordered array, or as the older object", async () => {
+    const api = new Recorder(completed());
+    const steps = [{ click: "#more" }, { wait_ms: 500 }, { click: "#more" }];
+    await client(api).scrape("https://example.com", { jsRendering: true, jsInstructions: steps });
+    expect((api.body.attributes as Record<string, unknown>).js_instructions).toEqual(steps);
+    await client(api).scrape("https://example.com", { jsInstructions: { click: "#more" } });
+    expect((api.body.attributes as Record<string, unknown>).js_instructions).toEqual({
+      click: "#more",
+    });
+  });
+
+  it("sends one blocked resource type as a string and several as an array", async () => {
+    const api = new Recorder(completed());
+    await client(api).scrape("https://example.com", { blockResource: "Image" });
+    expect((api.body.attributes as Record<string, unknown>).block_resource).toBe("Image");
+    await client(api).scrape("https://example.com", { blockResource: ["Image", "Font"] });
+    expect((api.body.attributes as Record<string, unknown>).block_resource).toEqual([
+      "Image",
+      "Font",
+    ]);
+    await client(api).scrape("https://example.com", { blockResource: [] });
+    expect(api.body.attributes).toEqual({ url: "https://example.com" });
   });
 
   it("drops images for markdown()", async () => {

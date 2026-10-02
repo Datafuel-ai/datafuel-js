@@ -35,6 +35,9 @@ describe("errors", () => {
     [404, "JOB_NOT_FOUND", datafuel.NotFound],
     [404, "CRAWL_NOT_FOUND", datafuel.NotFound],
     [409, "JOB_NOT_CANCELLABLE", datafuel.JobNotCancellable],
+    [409, "TASK_ALREADY_EXISTS", datafuel.AlreadyExists],
+    [409, "JOB_ALREADY_EXISTS", datafuel.AlreadyExists],
+    [409, "SOMETHING_NEW", datafuel.APIError],
     [422, "IDEMPOTENCY_KEY_REUSED", datafuel.IdempotencyKeyReused],
     [429, "RATE_LIMIT_EXCEEDED", datafuel.RateLimited],
     [429, "CONCURRENCY_LIMIT_REACHED", datafuel.RateLimited],
@@ -50,6 +53,14 @@ describe("errors", () => {
     expect(error).toBeInstanceOf(expected);
     expect((error as datafuel.APIError).status).toBe(status);
     expect((error as datafuel.APIError).code).toBe(code);
+  });
+
+  it("does not call a create collision a finished job", async () => {
+    const api = new Recorder(errorResponse(409, "TASK_ALREADY_EXISTS"));
+    const error = await client(api)
+      .scrape("https://example.com")
+      .catch((caught: unknown) => caught);
+    expect(error).not.toBeInstanceOf(datafuel.JobNotCancellable);
   });
 
   it("fails before any request when there is no api key", async () => {

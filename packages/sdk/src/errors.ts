@@ -45,6 +45,10 @@ export type ErrorCode =
   | "JOB_NOT_FOUND"
   | "CRAWL_NOT_FOUND"
   | "JOB_NOT_CANCELLABLE"
+  | "TASK_ALREADY_EXISTS"
+  | "JOB_ALREADY_EXISTS"
+  | "URL_LENGTH_CANNOT_BE_ZERO"
+  | "ANALYTICS_FETCH_FAILED"
   | "INVALID_CRAWL_PATTERN"
   | "CRAWL_UNSUPPORTED_OPTION"
   | "INVALID_CURSOR"
@@ -92,6 +96,12 @@ export class InvalidAttributes extends APIError {}
 export class IdempotencyKeyReused extends APIError {}
 /** 409 JOB_NOT_CANCELLABLE: the job or crawl already finished. */
 export class JobNotCancellable extends APIError {}
+/**
+ * 409 TASK_ALREADY_EXISTS / JOB_ALREADY_EXISTS: the create collided with an
+ * existing task or job and is not an idempotent replay. Nothing was charged;
+ * send the request again.
+ */
+export class AlreadyExists extends APIError {}
 /** 503: an operator switched something off, or a dependency is down. The message carries the reason. */
 export class Unavailable extends APIError {}
 /** 503 MODULE_UNAVAILABLE: this task type is switched off. Nothing was charged. */
@@ -152,6 +162,8 @@ const BY_CODE: Record<string, new (s: number, c: string, m: string, r?: number) 
   INVALID_API_KEY: Unauthorized,
   FORBIDDEN: Forbidden,
   JOB_NOT_CANCELLABLE: JobNotCancellable,
+  TASK_ALREADY_EXISTS: AlreadyExists,
+  JOB_ALREADY_EXISTS: AlreadyExists,
 };
 
 const BY_STATUS: Record<number, new (s: number, c: string, m: string, r?: number) => APIError> = {
@@ -159,7 +171,6 @@ const BY_STATUS: Record<number, new (s: number, c: string, m: string, r?: number
   402: InsufficientCredits,
   403: Forbidden,
   404: NotFound,
-  409: JobNotCancellable,
   422: IdempotencyKeyReused,
   429: RateLimited,
   503: Unavailable,

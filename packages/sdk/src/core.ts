@@ -21,7 +21,7 @@ import type {
 export const DEFAULT_BASE_URL = "https://scraping-api.datafuel.ai/api/v1";
 
 /** Kept in step with package.json by a test; see test/hardening.test.ts. */
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 
 /** How long a synchronous call waits for a result before giving up. */
 export const DEFAULT_TIMEOUT_MS = 180_000;
@@ -37,9 +37,11 @@ export class Request {
     readonly method: string,
     readonly path: string,
     readonly params?: Record<string, string>,
-    readonly body?: Record<string, unknown>,
+    readonly body?: Record<string, unknown> | unknown[],
     readonly idempotencyKey?: string,
     readonly auth: boolean = true,
+    /** A 503 that carries a health report is an answer, not an error. */
+    readonly degradedOk: boolean = false,
   ) {}
 
   /** GETs are safe by nature, writes because they carry an idempotency key. */
@@ -109,23 +111,10 @@ function aiAttributes(ai: AI): Record<string, unknown> {
   return out;
 }
 
-/**
- * Catch a half-filled AI key before it costs a request. The API does not check
- * these, so a missing one would be spent on a scrape whose AI step then fails.
- */
+/** The API answers 400 INVALID_ATTRIBUTES without a provider; say so before sending. */
 export function validateAI(ai: AI): void {
-  const given = {
-    provider: ai.provider !== undefined,
-    model: ai.model !== undefined,
-    apiKey: ai.apiKey !== undefined,
-  };
-  const present = Object.values(given).filter(Boolean).length;
-  if (present > 0 && present < 3) {
-    const missing = Object.entries(given)
-      .filter(([, ok]) => !ok)
-      .map(([name]) => name)
-      .join(", ");
-    throw new TypeError(`ai needs provider, model and apiKey together; missing: ${missing}`);
+  if (!ai.provider) {
+    throw new TypeError("ai needs a provider: openai, anthropic or google");
   }
 }
 
@@ -141,7 +130,12 @@ export function scrapeAttributes(options: ScrapeOptions = {}): Record<string, un
   if (options.waitFor) attrs.wait_for_selector = options.waitFor;
   if (options.waitForTimeoutMs) attrs.wait_for_selector_timeout_ms = options.waitForTimeoutMs;
   if (options.jsInstructions) attrs.js_instructions = options.jsInstructions;
-  if (options.blockResource) attrs.block_resource = options.blockResource;
+  if (options.blockResource?.length) {
+    attrs.block_resource =
+      typeof options.blockResource === "string"
+        ? options.blockResource
+        : [...options.blockResource];
+  }
   if (options.mainContentOnly) attrs.main_content_only = true;
   if (options.includeImages !== undefined) attrs.include_images = options.includeImages;
   if (options.extract) attrs.extract_selector = selector(options.extract);
@@ -386,7 +380,10 @@ export interface SearchOptions {
   ludocid?: string;
   lsig?: string;
   ibp?: string;
-  /** Exit country of the request. */
+  /**
+   * Accepted but not used yet: searches leave through DataFuel's own pool.
+   * Target a market with `country` and `language`.
+   */
   proxyCountry?: string;
   /** Default json. */
   format?: "json" | "html" | "markdown";
@@ -462,6 +459,18 @@ export function crawlResultsRequest(crawlId: string, cursor?: string, limit?: nu
     "GET",
     `/crawl/${pathSegment(crawlId)}/results`,
     Object.keys(params).length > 0 ? params : undefined,
+  );
+}
+
+export function healthRequest(deep: boolean): Request {
+  return new Request(
+    "GET",
+    "/healthz",
+    deep ? { deep: "1" } : undefined,
+    undefined,
+    undefined,
+    false,
+    true,
   );
 }
 

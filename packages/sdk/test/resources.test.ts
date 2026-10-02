@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import * as datafuel from "../src/index.js";
-import { client, completed, errorResponse, Router } from "./helpers.js";
+import { client, completed, errorResponse, Recorder, Router } from "./helpers.js";
 
 describe("map", () => {
   it("decodes links", async () => {
@@ -264,6 +264,55 @@ describe("config", () => {
     expect(api.requests[1]!.url.pathname).toBe("/api/v1/config/js-instructions");
     expect(api.header("X-API-Key")).toBeUndefined();
     await expect(bare.balance()).rejects.toBeInstanceOf(datafuel.NoApiKey);
+  });
+
+  it("reads the ai providers without a key", async () => {
+    const api = new Recorder({ providers: [{ name: "openai", models: ["gpt-4o"] }] });
+    const bare = new datafuel.DataFuel({ apiKey: "", fetch: api.fetch });
+    await expect(bare.aiProviders()).resolves.toEqual([{ name: "openai", models: ["gpt-4o"] }]);
+    expect(api.requests[0]!.url.pathname).toBe("/api/v1/config/ai-providers");
+  });
+
+  it("returns a degraded health report instead of throwing", async () => {
+    const report = {
+      status: "degraded",
+      checks: { redis: { status: "fail", latency_ms: 2000 } },
+    };
+    const api = new Recorder(
+      new Response(JSON.stringify(report), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const bare = new datafuel.DataFuel({ apiKey: "", fetch: api.fetch });
+    const health = await bare.health({ deep: true });
+    expect(health).toEqual({ ...report, ok: false });
+    expect(api.requests).toHaveLength(1);
+    expect(api.requests[0]!.url.pathname).toBe("/api/v1/healthz");
+    expect(api.requests[0]!.url.searchParams.get("deep")).toBe("1");
+  });
+
+  it("reads the shallow health check", async () => {
+    const api = new Recorder({ status: "ok" });
+    const health = await client(api).health();
+    expect(health.ok).toBe(true);
+    expect(api.requests[0]!.url.search).toBe("");
+  });
+
+  it("still throws on a 503 that is not a health report", async () => {
+    const api = new Recorder(errorResponse(503, "X"));
+    await expect(client(api, { maxRetries: 0 }).health({ deep: true })).rejects.toBeInstanceOf(
+      datafuel.Unavailable,
+    );
+  });
+
+  it("posts the URL list to the protection check", async () => {
+    const api = new Recorder([{ host: "shop.test", path: "/", protection_type: "cloudflare" }]);
+    const checks = await client(api).checkProtection(["https://shop.test/"]);
+    expect(api.requests[0]!.init.method).toBe("POST");
+    expect(api.requests[0]!.url.pathname).toBe("/api/v1/filter/check");
+    expect(api.bodies()[0]).toEqual(["https://shop.test/"]);
+    expect(checks[0]!.protection_type).toBe("cloudflare");
   });
 
   it("reads proxy locations and ASNs", async () => {

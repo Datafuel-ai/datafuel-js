@@ -32,6 +32,7 @@ export type { ClientOptions } from "./client.js";
 export { DEFAULT_BASE_URL, VERSION } from "./core.js";
 export type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
 export {
+  AlreadyExists,
   APIError,
   Blocked,
   DataFuelError,
@@ -55,6 +56,7 @@ export type { ErrorCode } from "./errors.js";
 export { Capabilities, CrawlPage, isDone, Result } from "./models.js";
 export type {
   AI,
+  AIProvider,
   Analytics,
   AnalyticsCounts,
   AnalyticsOptions,
@@ -67,6 +69,7 @@ export type {
   CrawlStatus,
   Engine,
   Format,
+  Health,
   JobResults,
   JobsPage,
   JobStatus,
@@ -78,6 +81,7 @@ export type {
   ListTasksOptions,
   Payload,
   Profile,
+  ProtectionCheck,
   Proxy,
   ProxyCountry,
   ProxyLocation,

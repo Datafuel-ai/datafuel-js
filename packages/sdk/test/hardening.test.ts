@@ -115,16 +115,22 @@ describe("hangs", () => {
 });
 
 describe("misconfiguration", () => {
-  it("requires ai credentials to travel together", async () => {
+  it("requires an ai provider and nothing else", async () => {
     const api = new Recorder(completed());
+    await expect(client(api).scrape("https://x.test", { ai: { prompt: "x" } })).rejects.toThrow(
+      /provider/,
+    );
     await expect(
-      client(api).scrape("https://example.com", {
-        ai: { prompt: "x", provider: "openai", model: "gpt-4o-mini" },
+      client(api).scrape("https://x.test", { ai: { prompt: "x", model: "gpt-4o", apiKey: "sk" } }),
+    ).rejects.toThrow(/provider/);
+    expect(api.requests).toHaveLength(0);
+    await expect(
+      client(api).scrape("https://x.test", { ai: { prompt: "x", provider: "openai" } }),
+    ).resolves.toBeTruthy();
+    await expect(
+      client(api).scrape("https://x.test", {
+        ai: { prompt: "x", provider: "openai", model: "gpt-4o", apiKey: "sk" },
       }),
-    ).rejects.toThrow(/apiKey/);
-    // All three, or none at all: a prompt on its own is the server's business.
-    await expect(
-      client(api).scrape("https://x.test", { ai: { prompt: "x" } }),
     ).resolves.toBeTruthy();
   });
 
