@@ -6,6 +6,7 @@ import { apiError, DataFuelError, NoApiKey, TransportError, WaitTimeout } from "
 import type {
   Analytics,
   AnalyticsOptions,
+  BalanceSplit,
   CallOptions,
   CancelResult,
   Capability,
@@ -573,14 +574,24 @@ export class DataFuel {
     ) as ProxyLocation[];
   }
 
-  /** Remaining credits. */
+  /** Remaining credits: plan and pay-as-you-go together. */
   async balance(options: CallOptions = {}): Promise<number> {
     const body = await this.send(new core.Request("GET", "/users/@me/balance"), options);
     return intField(body, "balance");
   }
 
+  /** Remaining credits by pool: plan credits (spent first) and pay-as-you-go credits. */
+  async balanceSplit(options: CallOptions = {}): Promise<BalanceSplit> {
+    const body = await this.send(new core.Request("GET", "/users/@me/balance"), options);
+    return {
+      balance: intField(body, "balance"),
+      plan_balance: intField(body, "plan_balance"),
+      payg_balance: intField(body, "payg_balance"),
+    };
+  }
+
   /**
-   * Credit movements, newest first: purchases, usage, refunds, expiry.
+   * Credit movements, newest first: plan assignments, credit pack purchases, usage, refunds, expiry.
    * `sums` totals each operation over the whole range, not just this page.
    */
   async transactions(options: TransactionsOptions & CallOptions = {}): Promise<TransactionsPage> {

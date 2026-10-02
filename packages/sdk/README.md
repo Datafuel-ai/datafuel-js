@@ -165,6 +165,13 @@ const history = await df.transactions({ operation: "refund", limit: 50 });
 
 `listJobs` and `listTasks` run newest first; pass `nextCursor` back as `cursor` until it is absent. Task items carry no result: call `getTask(id)` for it. Dates are `YYYY-MM-DD` in UTC (a `Date` is sent as its UTC day) and `endDate` is inclusive. `transactions` pages with `page` and `limit`, and its `sums` total each operation over the whole range. In `analytics`, `status_code` 0 means the target never answered (timeout, DNS).
 
+```ts
+const credits = await df.balance();
+const { plan_balance, payg_balance } = await df.balanceSplit();
+```
+
+`balance` is what you can spend. It is made of plan credits and pay-as-you-go credits. Plan credits are spent first; unused ones roll over when the plan renews and expire if it is not renewed. Pay-as-you-go credits come from one-time credit packs (a `purchase` transaction), are spent after plan credits and never expire. Each transaction's `plan_amount` is the part of `amount` that moved plan credits.
+
 ## Errors
 
 ```ts

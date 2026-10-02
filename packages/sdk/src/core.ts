@@ -21,7 +21,7 @@ import type {
 export const DEFAULT_BASE_URL = "https://scraping-api.datafuel.ai/api/v1";
 
 /** Kept in step with package.json by a test; see test/hardening.test.ts. */
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 
 /** How long a synchronous call waits for a result before giving up. */
 export const DEFAULT_TIMEOUT_MS = 180_000;

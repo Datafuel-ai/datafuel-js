@@ -414,6 +414,8 @@ export interface TransactionsOptions {
 export interface Transaction {
   id: number;
   amount: number;
+  /** The part of `amount` that moved plan credits, same sign; the rest moved pay-as-you-go credits. */
+  plan_amount?: number;
   operation: TransactionOperation;
   /** What `reference_id` points to, e.g. `task_id` or `job_id`. */
   reference_type: string;
@@ -508,13 +510,30 @@ export interface Analytics {
   by_status_code: StatusCodeBreakdown[];
 }
 
+/**
+ * Credits by pool. Plan credits are spent first, roll over when the plan renews and
+ * expire if it is not renewed. Pay-as-you-go credits come from credit packs, are spent
+ * after plan credits and never expire.
+ */
+export interface BalanceSplit {
+  /** Total spendable credits: `plan_balance` plus `payg_balance`. */
+  balance: number;
+  plan_balance: number;
+  payg_balance: number;
+}
+
 /** The account behind the API key. */
 export interface Profile {
   email: string;
   username: string;
   current_concurrency: number;
   concurrency_limit: number;
+  /** Total spendable credits: `plan_credit_balance` plus `payg_credit_balance`. */
   credit_balance: number;
+  /** Spent first; expire if the plan is not renewed. */
+  plan_credit_balance?: number;
+  /** Spent after plan credits; never expire. */
+  payg_credit_balance?: number;
   monthly_credit_limit: number;
 }
 
