@@ -60,7 +60,9 @@ export interface AI {
   prompt?: string;
   /** Example JSON object the output must follow. */
   format?: unknown;
-  provider?: "openai" | "anthropic" | "google";
+  /** Required. One of the providers `df.aiProviders()` lists; the API answers 400 INVALID_ATTRIBUTES without it. */
+  provider?: string;
+  /** One of the models `df.aiProviders()` lists for `provider`. Omit for the provider's default. */
   model?: string;
   apiKey?: string;
 }
@@ -75,9 +77,15 @@ export interface ScrapeOptions {
   jsRendering?: boolean;
   waitFor?: string;
   waitForTimeoutMs?: number;
-  /** An object keyed by action, e.g. `{ click: "#more" }`. `df.jsInstructions()` lists them. */
+  /**
+   * Browser actions run after load: an array of single-action objects, run in
+   * order, e.g. `[{ click: "#more" }, { wait_ms: 1000 }, { click: "#more" }]`.
+   * An object keyed by action is still accepted, but its order is not
+   * guaranteed and an action cannot repeat. `df.jsInstructions()` lists them.
+   */
   jsInstructions?: unknown;
-  blockResource?: string;
+  /** Resource types the browser must not load: one, e.g. `"Image"`, or several. */
+  blockResource?: string | string[];
   /** Markdown only: always render just the `<main>` / `<article>` container. */
   mainContentOnly?: boolean;
   /** Markdown only: `false` drops images and saves tokens. */
@@ -555,6 +563,28 @@ export interface JsInstruction {
   /** Whether it can target an element inside an iframe. */
   iframe: boolean;
   example: unknown;
+}
+
+/** An LLM provider `ai.provider` accepts, with the models `ai.model` accepts for it. */
+export interface AIProvider {
+  name: string;
+  models: string[];
+}
+
+/** The anti-bot protection in front of one host and path, from `checkProtection`. */
+export interface ProtectionCheck {
+  host: string;
+  path: string;
+  /** cloudflare, cloudflare_5sec, akamai, imperva, perimeterx or unprotected. */
+  protection_type: string;
+}
+
+/** The state of the API. `checks` is filled by a deep check only, keyed by dependency. */
+export interface Health {
+  status: "ok" | "degraded" | (string & {});
+  checks?: Record<string, { status: "ok" | "fail" | (string & {}); latency_ms: number }>;
+  /** Whether the API can serve requests. */
+  ok: boolean;
 }
 
 /** A named proxy location: a city, or an ASN. */

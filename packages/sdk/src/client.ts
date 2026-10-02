@@ -4,6 +4,7 @@ import * as core from "./core.js";
 import type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
 import { apiError, DataFuelError, NoApiKey, TransportError, WaitTimeout } from "./errors.js";
 import type {
+  AIProvider,
   Analytics,
   AnalyticsOptions,
   BalanceSplit,
@@ -13,6 +14,7 @@ import type {
   CrawlResult,
   CrawlResultsPage,
   CrawlStatus,
+  Health,
   JobResults,
   JobsPage,
   JobStatus,
@@ -21,6 +23,7 @@ import type {
   ListOptions,
   ListTasksOptions,
   Profile,
+  ProtectionCheck,
   ProxyCountry,
   ProxyLocation,
   ScrapeOptions,
@@ -125,7 +128,7 @@ export class DataFuel {
         // none) throws "Illegal invocation".
         const send = this.fetchImpl;
         const response = await send(url, signal ? { ...init, signal } : init);
-        return await parse(response);
+        return await parse(response, request.degradedOk);
       } catch (caught) {
         if (isAbort(caught)) {
           throw new TransportError("the request was aborted or timed out", { cause: caught });
@@ -552,6 +555,40 @@ export class DataFuel {
     return Array.isArray(body.instructions) ? (body.instructions as JsInstruction[]) : [];
   }
 
+  /** The LLM providers and models `ai` accepts. Needs no key. */
+  async aiProviders(options: CallOptions = {}): Promise<AIProvider[]> {
+    const request = new core.Request(
+      "GET",
+      "/config/ai-providers",
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
+    const body = record(await this.send(request, options));
+    return Array.isArray(body.providers) ? (body.providers as AIProvider[]) : [];
+  }
+
+  /**
+   * Whether the API is up. `deep` also checks the dependencies it needs to
+   * serve scrapes. A degraded report is returned, not thrown: read `ok`.
+   * Needs no key.
+   */
+  async health(options: CallOptions & { deep?: boolean } = {}): Promise<Health> {
+    const body = record(await this.send(core.healthRequest(options.deep ?? false), options));
+    return { ...(body as unknown as Health), ok: body.status === "ok" };
+  }
+
+  /**
+   * Which anti-bot protection sits in front of each URL. Nothing is scraped
+   * and nothing is charged; invalid URLs are skipped.
+   */
+  async checkProtection(urls: string[], options: CallOptions = {}): Promise<ProtectionCheck[]> {
+    return list(
+      await this.send(new core.Request("POST", "/filter/check", undefined, [...urls]), options),
+    ) as ProtectionCheck[];
+  }
+
   /** Countries, regions and cities a proxy type can exit from. */
   async proxyLocations(
     options: CallOptions & { proxyType?: string } = {},
@@ -640,7 +677,7 @@ function envApiKey(): string | undefined {
   return typeof process !== "undefined" ? process.env?.DATAFUEL_API_KEY : undefined;
 }
 
-async function parse(response: Response): Promise<unknown> {
+async function parse(response: Response, degradedOk = false): Promise<unknown> {
   const text = await response.text();
   let body: unknown;
   if (text.length > 0) {
@@ -650,12 +687,17 @@ async function parse(response: Response): Promise<unknown> {
       body = text;
     }
   }
+  if (degradedOk && response.status === 503 && isHealthReport(body)) return body;
   if (!response.ok) {
     const header = response.headers.get("Retry-After");
     const retryAfter = header !== null && !Number.isNaN(Number(header)) ? Number(header) : 0;
     throw apiError(response.status, body, retryAfter);
   }
   return body;
+}
+
+function isHealthReport(body: unknown): boolean {
+  return body !== null && typeof body === "object" && "status" in body;
 }
 
 function isAbort(error: unknown): boolean {

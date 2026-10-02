@@ -26,6 +26,8 @@ const markdown = await df.markdown("https://example.com");
 | A Google search              | `search`                                                | yes           |
 | Many prompts or searches     | `runAskJob` / `runSearchJob`                            | yes           |
 | Earlier jobs, tasks, usage   | `listJobs` / `listTasks` / `analytics` / `transactions` | yes           |
+| What a request may contain   | `jsInstructions` / `aiProviders` / `proxyLocations`     | yes           |
+| The wall in front of a URL   | `checkProtection`                                       | yes           |
 
 Start with plain `scrape`. Turn on `jsRendering` only when the page comes back empty: it is slower and costs five times the credits on a Basic proxy. `map` a section before you `crawl` it, it costs one credit and tells you how big it is.
 
@@ -63,7 +65,22 @@ try {
 
 `res.text` returns html or markdown, `res.data` structured output, `res.image` screenshot bytes.
 
-Page options, shared by `scrape`, jobs and crawls: `format` (`html`, `markdown`, `json`, `png`, `jpeg`), `jsRendering`, `waitFor`, `waitForTimeoutMs`, `jsInstructions` (an object keyed by action, e.g. `{ click: "#more" }`; `df.jsInstructions()` lists the actions), `blockResource`, `mainContentOnly`, `includeImages`, `extract`, `extractRegex`, `template`, `method`, `body`, `contentType`, `headers`, `headerOrder`, `cookies`, `userAgent`, `userAgentType`, `ai`.
+Page options, shared by `scrape`, jobs and crawls: `format` (`html`, `markdown`, `json`, `png`, `jpeg`), `jsRendering`, `waitFor`, `waitForTimeoutMs`, `jsInstructions`, `blockResource` (one resource type or an array, e.g. `["Image", "Font"]`), `mainContentOnly`, `includeImages`, `extract`, `extractRegex`, `template`, `method`, `body`, `contentType`, `headers`, `headerOrder`, `cookies`, `userAgent`, `userAgentType`, `ai`.
+
+`jsInstructions` is an array of single-action objects. They run in the order you list them and an action can repeat:
+
+```ts
+await df.scrape(url, {
+  jsRendering: true,
+  jsInstructions: [
+    { fill: ["input[name=q]", "laptops"] },
+    { click: "button[type=submit]" },
+    { wait_ms: 1000 },
+  ],
+});
+```
+
+The older form, one object keyed by action (`{ click: "#more" }`), still works, but its order is not guaranteed and an action cannot repeat. `df.jsInstructions()` lists the actions.
 
 `proxy` takes `type`, `country`, `city`, `state`, `asn`, and a sticky `sessionId` with `ttl` (seconds) on `scrape`, `map`, URL jobs and crawls. `df.proxyLocations()` and `df.proxyAsns(country)` list what a proxy type can exit from.
 
@@ -76,15 +93,14 @@ const res = await df.scrape(url, {
   ai: {
     prompt: "extract the product name and its price",
     format: { name: "string", price: "number" },
-    provider: "openai", // openai, anthropic, google
-    model: "gpt-4o-mini",
+    provider: "openai", // required; df.aiProviders() lists the providers and their models
     apiKey: process.env.OPENAI_API_KEY,
   },
 });
 res.data; // { name: "...", price: ... }
 ```
 
-Works on `scrape` and on URL jobs. Crawls reject it; the SDK says so before sending. `provider`, `model` and `apiKey` must be given together — a half-filled key would be spent on a scrape whose AI step then fails.
+Works on `scrape` and on URL jobs. Crawls reject it; the SDK says so before sending. `provider` is required. `model` is optional: leave it out for the provider's default, or pick one of the models `df.aiProviders()` lists; any other value is rejected with `InvalidAttributes`.
 
 ## Crawl
 
@@ -141,7 +157,7 @@ const serp = await df.search("best crm", { country: "us", language: "en", page: 
 console.log(serp.data); // parsed results page; format "html" or "markdown" for the raw page
 ```
 
-`search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr`, `filter` and `proxyCountry`.
+`search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
 
 ## Map
 
@@ -172,6 +188,16 @@ const { plan_balance, payg_balance } = await df.balanceSplit();
 
 `balance` is what you can spend. It is made of plan credits and pay-as-you-go credits. Plan credits are spent first; unused ones roll over when the plan renews and expire if it is not renewed. Pay-as-you-go credits come from one-time credit packs (a `purchase` transaction), are spent after plan credits and never expire. Each transaction's `plan_amount` is the part of `amount` that moved plan credits.
 
+## Config and health
+
+```ts
+await df.capabilities(); // which task types and LLM engines are on
+await df.jsInstructions(); // the browser actions jsInstructions accepts
+await df.aiProviders(); // the LLM providers and models ai accepts
+await df.checkProtection(["https://shop.example.com/"]); // anti-bot vendor per URL, nothing scraped
+const health = await df.health({ deep: true }); // health.ok is false while a dependency is down
+```
+
 ## Errors
 
 ```ts
@@ -191,7 +217,7 @@ try {
 ```
 
 - `NoApiKey`: no key was passed and `DATAFUEL_API_KEY` is empty. Thrown before any request.
-- `APIError`: the API refused the request. `.code` holds the API's error code (typed as `ErrorCode`). Subclasses: `Unauthorized`, `Forbidden`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`, `JobNotCancellable`.
+- `APIError`: the API refused the request. `.code` holds the API's error code (typed as `ErrorCode`). Subclasses: `Unauthorized`, `Forbidden`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`, `JobNotCancellable`, `AlreadyExists` (a create collided with an existing task or job; nothing was charged, send it again).
 - `ModuleUnavailable`, `EngineUnavailable`: an operator switched a task type or LLM engine off, e.g. during a provider outage. The reason is in the message, nothing is charged, and the SDK does not retry. `df.capabilities()` lists what is on.
 - `TaskFailed`, and `Blocked` when the target refused: the API accepted the task but the page could not be scraped. The error carries `.result`, so the envelope is still readable. Failed tasks are refunded.
 - `WaitTimeout`: a wait ran out of time. `.id` picks the work back up.
@@ -224,7 +250,7 @@ Keep `timeoutMs` generous: `scrape` waits until the page is ready, which can tak
 
 If you pass your own `fetch`, leave redirects off. fetch keeps custom headers across a redirect, so a redirect to another host would carry your `X-API-Key` to it. This SDK sends `redirect: "manual"`.
 
-Full API reference: https://scraping-api.datafuel.ai/docs
+Guides and the full API reference: https://docs.datafuel.ai
 
 ## MCP
 
