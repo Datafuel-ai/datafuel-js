@@ -279,6 +279,57 @@ export function buildAskJob(
   );
 }
 
+/** Options for `duckduckgo`, duck.ai's chat. Flat price whatever the model. */
+export interface DuckDuckGoOptions {
+  /** Default gpt-6-luna. */
+  model?:
+    | "gpt-6-luna"
+    | "gpt-5.4-mini"
+    | "claude-haiku-4-5"
+    | "mistral-small-2603"
+    | "tinfoil/gpt-oss-120b"
+    | "tinfoil/gemma4-31b"
+    | (string & {});
+  /** Exit country; duck.ai answers location questions for it. */
+  country?: string;
+}
+
+export function duckduckgoAttributes(
+  promptField: string,
+  prompt: string | string[],
+  options: DuckDuckGoOptions,
+): Record<string, unknown> {
+  const attrs: Record<string, unknown> = { [promptField]: prompt };
+  if (options.model) attrs.model = options.model;
+  if (options.country) attrs.proxy_country = options.country;
+  return attrs;
+}
+
+export function buildDuckDuckGo(
+  prompt: string,
+  options: DuckDuckGoOptions,
+  idempotencyKey: string,
+): Request {
+  const attrs = duckduckgoAttributes("prompt", prompt, options);
+  return new Request("POST", "/task", undefined, envelope("duckduckgo", attrs), idempotencyKey);
+}
+
+export function buildDuckDuckGoJob(
+  prompts: string[],
+  options: DuckDuckGoOptions,
+  sequential: boolean,
+  idempotencyKey: string,
+): Request {
+  const attrs = duckduckgoAttributes("prompts", [...prompts], options);
+  return new Request(
+    "POST",
+    "/job",
+    undefined,
+    envelope("duckduckgo", attrs, { multithreaded: !sequential }),
+    idempotencyKey,
+  );
+}
+
 /** Options for `map`. */
 export interface MapOptions {
   /** Keep only links whose URL or title contains this. */

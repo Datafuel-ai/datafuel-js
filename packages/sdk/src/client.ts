@@ -1,7 +1,13 @@
 /** The client. It only moves bytes; `core` decides what goes on the wire. */
 
 import * as core from "./core.js";
-import type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
+import type {
+  AskOptions,
+  CrawlOptions,
+  DuckDuckGoOptions,
+  MapOptions,
+  SearchOptions,
+} from "./core.js";
 import { apiError, DataFuelError, NoApiKey, TransportError, WaitTimeout } from "./errors.js";
 import type {
   AIProvider,
@@ -249,6 +255,15 @@ export class DataFuel {
   }
 
   /**
+   * Ask duck.ai's chat and return its answer. `result.data` is
+   * `{text, citations}`; citation markers in `text` read `[n]`.
+   */
+  async duckduckgo(prompt: string, options: DuckDuckGoOptions & CallOptions = {}): Promise<Result> {
+    const request = core.buildDuckDuckGo(prompt, options, core.key(options.idempotencyKey));
+    return this.runTask(request, options);
+  }
+
+  /**
    * List the URLs of a site without scraping them.
    *
    * One credit per call on a Basic proxy, however many links come back. Use it
@@ -428,6 +443,20 @@ export class DataFuel {
     return strField(await this.send(request, options), "id");
   }
 
+  /** Queue a batch of duck.ai prompts and return the job id. */
+  async createDuckDuckGoJob(
+    prompts: string[],
+    options: DuckDuckGoOptions & CallOptions & { sequential?: boolean } = {},
+  ): Promise<string> {
+    const request = core.buildDuckDuckGoJob(
+      prompts,
+      options,
+      options.sequential ?? false,
+      core.key(options.idempotencyKey),
+    );
+    return strField(await this.send(request, options), "id");
+  }
+
   /** Return the progress of a job. */
   async getJob(jobId: string, options: CallOptions = {}): Promise<JobStatus> {
     return jobStatus(
@@ -533,6 +562,16 @@ export class DataFuel {
     options: SearchOptions & CallOptions & { sequential?: boolean } = {},
   ): Promise<JobResults> {
     const id = await this.createSearchJob(queries, options);
+    await this.waitJob(id, options);
+    return this.jobResults(id, options);
+  }
+
+  /** Create a duck.ai job, wait for it, and return its results. */
+  async runDuckDuckGoJob(
+    prompts: string[],
+    options: DuckDuckGoOptions & CallOptions & { sequential?: boolean } = {},
+  ): Promise<JobResults> {
+    const id = await this.createDuckDuckGoJob(prompts, options);
     await this.waitJob(id, options);
     return this.jobResults(id, options);
   }

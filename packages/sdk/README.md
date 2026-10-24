@@ -24,7 +24,8 @@ const markdown = await df.markdown("https://example.com");
 | A list of known URLs         | `runJob`, or `createJob` + `waitJob` + `jobResults`     | `runJob` does |
 | A question for an AI engine  | `ask`                                                   | yes           |
 | A Google search              | `search`                                                | yes           |
-| Many prompts or searches     | `runAskJob` / `runSearchJob`                            | yes           |
+| A question for duck.ai       | `duckduckgo`                                            | yes           |
+| Many prompts or searches     | `runAskJob` / `runDuckDuckGoJob` / `runSearchJob`       | yes           |
 | Earlier jobs, tasks, usage   | `listJobs` / `listTasks` / `analytics` / `transactions` | yes           |
 | What a request may contain   | `jsInstructions` / `aiProviders` / `proxyLocations`     | yes           |
 | The wall in front of a URL   | `checkProtection`                                       | yes           |
@@ -141,7 +142,7 @@ for (const task of results.tasks) {
 }
 ```
 
-`sequential: true` runs the URLs one after the other; the default runs them concurrently, bounded by your account's concurrency limit. `runAskJob(prompts, { engine })` and `runSearchJob(queries)` do the same for a batch of prompts or Google searches. A job needs at least two targets.
+`sequential: true` runs the URLs one after the other; the default runs them concurrently, bounded by your account's concurrency limit. `runAskJob(prompts, { engine })`, `runDuckDuckGoJob(prompts)` and `runSearchJob(queries)` do the same for a batch of prompts, duck.ai prompts or Google searches. A job needs at least two targets.
 
 ## Ask and search
 
@@ -155,9 +156,14 @@ console.log(answer.text);
 
 const serp = await df.search("best crm", { country: "us", language: "en", page: 1 });
 console.log(serp.data); // parsed results page; format "html" or "markdown" for the raw page
+
+const duck = await df.duckduckgo("best crm", { model: "claude-haiku-4-5" });
+console.log(duck.data); // { text, citations }; markers in text read [n]
 ```
 
 `search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
+
+`duckduckgo` asks duck.ai's chat at a flat price per prompt. `model` is `gpt-6-luna` (default), `gpt-5.4-mini`, `claude-haiku-4-5`, `mistral-small-2603`, `tinfoil/gpt-oss-120b` or `tinfoil/gemma4-31b`; `country` is the exit country, which duck.ai answers location questions for.
 
 ## Map
 
