@@ -18,7 +18,8 @@
  * | A list of known URLs | `runJob` / `createJob` | `runJob` does |
  * | A question for an AI engine | `ask` | yes |
  * | A Google search | `search` | yes |
- * | Many prompts or searches | `runAskJob` / `runSearchJob` | yes |
+ * | A question for duck.ai | `duckduckgo` | yes |
+ * | Many prompts or searches | `runAskJob` / `runDuckDuckGoJob` / `runSearchJob` | yes |
  * | Earlier jobs, tasks, usage | `listJobs` / `listTasks` / `analytics` / `transactions` | yes |
  *
  * Start with plain `scrape`. Turn on `jsRendering` only when the page comes
@@ -30,7 +31,13 @@
 export { DataFuel } from "./client.js";
 export type { ClientOptions } from "./client.js";
 export { DEFAULT_BASE_URL, VERSION } from "./core.js";
-export type { AskOptions, CrawlOptions, MapOptions, SearchOptions } from "./core.js";
+export type {
+  AskOptions,
+  CrawlOptions,
+  DuckDuckGoOptions,
+  MapOptions,
+  SearchOptions,
+} from "./core.js";
 export {
   AlreadyExists,
   APIError,

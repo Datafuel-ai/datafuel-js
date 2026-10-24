@@ -184,6 +184,40 @@ describe("search", () => {
   });
 });
 
+describe("duckduckgo", () => {
+  it("sends a duckduckgo task and returns the answer", async () => {
+    const answer = { text: "HubSpot [1]", citations: [] };
+    const api = new Router({ "POST /task": [completed(answer)] });
+    const res = await client(api).duckduckgo("best crm", {
+      model: "claude-haiku-4-5",
+      country: "us",
+    });
+    expect(api.body).toEqual({
+      type: "duckduckgo",
+      attributes: { prompt: "best crm", model: "claude-haiku-4-5", proxy_country: "us" },
+    });
+    expect(api.header("Idempotency-Key")).toBeTruthy();
+    expect(res.data).toEqual(answer);
+  });
+
+  it("runs a duckduckgo job over prompts", async () => {
+    const api = new Router({
+      "POST /job": [{ id: "job-d" }],
+      "GET /job/*/results": [
+        { tasks_count: 2, tasks_complete: 2, tasks_failed: 0, tasks_result: [completed()] },
+      ],
+      "GET /job/*": [{ status: "completed", tasks_count: 2, tasks_done: 2 }],
+    });
+    const results = await client(api).runDuckDuckGoJob(["a", "b"], { sequential: true });
+    expect(api.bodies()[0]).toEqual({
+      type: "duckduckgo",
+      multithreaded: false,
+      attributes: { prompts: ["a", "b"] },
+    });
+    expect(results.id).toBe("job-d");
+  });
+});
+
 describe("cancel", () => {
   const cancelled = {
     status: "cancelled",

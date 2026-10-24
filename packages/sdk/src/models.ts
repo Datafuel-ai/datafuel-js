@@ -334,7 +334,8 @@ export interface JobResults {
 }
 
 /** A task type, as the list and analytics filters take it. */
-export type TaskType = "unlocker" | "llm_scraping" | "serp" | "map" | "crawl" | (string & {});
+export type TaskType =
+  "unlocker" | "llm_scraping" | "duckduckgo" | "serp" | "map" | "crawl" | (string & {});
 
 /** Filters shared by {@link DataFuel.listJobs} and {@link DataFuel.listTasks}. */
 export interface ListOptions {
@@ -379,7 +380,7 @@ export interface TaskSummary {
   job_id: string | null;
   type: TaskType;
   status: Status;
-  /** Absent for `llm_scraping` and `serp`. */
+  /** Absent for `llm_scraping`, `duckduckgo` and `serp`. */
   url?: string;
   /** Charged when queued; a failed task is refunded. */
   credit_cost: number;
