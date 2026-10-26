@@ -144,6 +144,7 @@ describe("search", () => {
       radius: 500,
       safe: "off",
       nfpr: false,
+      aiOverview: true,
       proxyCountry: "DE",
     });
     expect(api.body).toEqual({
@@ -160,6 +161,7 @@ describe("search", () => {
         lat: 52.5,
         lon: 13.4,
         nfpr: false,
+        ai_overview: true,
       },
     });
     expect(api.header("Idempotency-Key")).toBeTruthy();

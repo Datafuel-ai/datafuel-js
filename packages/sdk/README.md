@@ -157,7 +157,7 @@ const serp = await df.search("best crm", { country: "us", language: "en", page: 
 console.log(serp.data); // parsed results page; format "html" or "markdown" for the raw page
 ```
 
-`search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
+`search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Set `aiOverview: true` to also get Google's AI overview (default false). Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
 
 ## Map
 

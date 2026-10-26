@@ -385,6 +385,8 @@ export interface SearchOptions {
   ludocid?: string;
   lsig?: string;
   ibp?: string;
+  /** Also return Google's AI overview. Default false. */
+  aiOverview?: boolean;
   /**
    * Accepted but not used yet: searches leave through DataFuel's own pool.
    * Target a market with `country` and `language`.
@@ -428,6 +430,7 @@ export function searchAttributes(
   if (options.lon !== undefined) attrs.lon = options.lon;
   if (options.nfpr !== undefined) attrs.nfpr = options.nfpr;
   if (options.filter !== undefined) attrs.filter = options.filter;
+  if (options.aiOverview) attrs.ai_overview = true;
   return attrs;
 }
 
