@@ -385,6 +385,8 @@ export interface SearchOptions {
   ludocid?: string;
   lsig?: string;
   ibp?: string;
+  /** Default desktop. */
+  device?: "desktop" | "mobile";
   /** Also return Google's AI overview. Default false. */
   aiOverview?: boolean;
   /**
@@ -418,6 +420,7 @@ export function searchAttributes(
     ["ludocid", "ludocid"],
     ["lsig", "lsig"],
     ["ibp", "ibp"],
+    ["device", "device"],
     ["proxyCountry", "proxy_country"],
     ["format", "result_format"],
   ];

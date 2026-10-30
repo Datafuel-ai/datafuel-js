@@ -145,6 +145,7 @@ describe("search", () => {
       safe: "off",
       nfpr: false,
       aiOverview: true,
+      device: "mobile",
       proxyCountry: "DE",
     });
     expect(api.body).toEqual({
@@ -155,6 +156,7 @@ describe("search", () => {
         language: "de",
         google_domain: "google.de",
         safe: "off",
+        device: "mobile",
         proxy_country: "DE",
         page: 2,
         radius: 500,
