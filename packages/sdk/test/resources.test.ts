@@ -188,6 +188,83 @@ describe("search", () => {
   });
 });
 
+describe("search pages and ai overview", () => {
+  it("sends the page count and reads the merged results", async () => {
+    const data: datafuel.SearchData = {
+      query: "best crm",
+      url: "https://www.google.com/search?q=best+crm",
+      page: 3,
+      organic: [{ position: 11, title: "Eleventh" }],
+      ai_overview: {
+        text: "CRMs compared",
+        products: [{ title: "Acme CRM", price: "$10", rating: 4.5, reviews: 12 }],
+        references: [{ title: "Review", url: "https://r.test", redirect: "https://g.test/r" }],
+      },
+    };
+    const api = new Router({ "POST /task": [completed(data, { credits_used: 30 })] });
+    const res = await client(api).search("best crm", {
+      page: 3,
+      device: "desktop",
+      aiOverview: true,
+    });
+    expect(api.body).toEqual({
+      type: "serp",
+      attributes: { query: "best crm", device: "desktop", page: 3, ai_overview: true },
+    });
+    const parsed = res.data as datafuel.SearchData;
+    expect(parsed.page).toBe(3);
+    expect(parsed.organic?.[0]?.position).toBe(11);
+    expect(parsed.ai_overview?.products?.[0]?.title).toBe("Acme CRM");
+    expect(res.creditsUsed).toBe(30);
+  });
+
+  it("leaves ai_overview out unless asked", async () => {
+    const api = new Router({ "POST /task": [completed({ query: "q", url: "u" })] });
+    await client(api).search("q", { aiOverview: false });
+    expect(api.body).toEqual({ type: "serp", attributes: { query: "q" } });
+  });
+});
+
+describe("ask", () => {
+  it("sends the duck_ai model and reads the engine", async () => {
+    const api = new Router({
+      "POST /task": [
+        completed({ text: "Acme", citations: [] }, { credits_used: 100, engine: "duck_ai" }),
+      ],
+    });
+    const res = await client(api).ask("best crm", {
+      engine: "duck_ai",
+      model: "claude-haiku-4-5",
+    });
+    expect(api.body).toEqual({
+      type: "llm_scraping",
+      attributes: { prompt: "best crm", engine: "duck_ai", model: "claude-haiku-4-5" },
+    });
+    expect(res.engine).toBe("duck_ai");
+    expect((res.data as { text: string }).text).toBe("Acme");
+  });
+
+  it("omits model when unset and leaves engine undefined when absent", async () => {
+    const api = new Router({ "POST /task": [completed({ text: "hi" })] });
+    const res = await client(api).ask("hi", { engine: "openai", followUp: "and?" });
+    expect(api.body).toEqual({
+      type: "llm_scraping",
+      attributes: { prompt: "hi", engine: "openai", follow_up_prompt: "and?" },
+    });
+    expect(res.engine).toBeUndefined();
+  });
+
+  it("sends the model on an ask job", async () => {
+    const api = new Router({ "POST /job": [{ id: "job-a" }] });
+    await client(api).createAskJob(["a", "b"], { engine: "duck_ai", model: "gpt-5.4-mini" });
+    expect(api.bodies()[0]).toEqual({
+      type: "llm_scraping",
+      multithreaded: true,
+      attributes: { prompts: ["a", "b"], engine: "duck_ai", model: "gpt-5.4-mini" },
+    });
+  });
+});
+
 describe("cancel", () => {
   const cancelled = {
     status: "cancelled",

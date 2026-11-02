@@ -146,18 +146,28 @@ for (const task of results.tasks) {
 ## Ask and search
 
 ```ts
+import type { SearchData } from "@datafuel/sdk";
+
 const answer = await df.ask("best CRM for a 10-person team", {
-  engine: "perplexity", // openai, gemini, google_ai_mode, perplexity, copilot
+  engine: "perplexity", // openai, gemini, google_ai_mode, perplexity, copilot, duck_ai
   websearch: true,
   country: "us",
 });
-console.log(answer.text);
+console.log((answer.data as { text: string }).text);
 
-const serp = await df.search("best crm", { country: "us", language: "en", page: 1 });
-console.log(serp.data); // parsed results page; format "html" or "markdown" for the raw page
+const duck = await df.ask("best CRM for a 10-person team", {
+  engine: "duck_ai",
+  model: "claude-haiku-4-5", // default gpt-6-luna
+});
+
+const serp = await df.search("best crm", { country: "us", language: "en", page: 2 });
+const results = serp.data as SearchData; // parsed results; format "html" or "markdown" for the raw page
+console.log(results.organic?.length, results.ai_overview?.text);
 ```
 
-`search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Set `device: "mobile"` for mobile results (default `"desktop"`) and `aiOverview: true` to also get Google's AI overview (default false). Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
+An answer's `data` is an object with the answer in `text` plus engine-specific fields (`citations` on `duck_ai`); `answer.text` returns it as JSON. `answer.engine` names the engine that ran the task. `model` is accepted with `duck_ai` only (`gpt-6-luna`, `gpt-5.4-mini`, `claude-haiku-4-5`, `mistral-small-2603`, `tinfoil/gpt-oss-120b`, `tinfoil/gemma4-31b`); other engines answer 400. `followUp` works on `openai` and `perplexity` only: on other engines the task fails and is refunded.
+
+`page` is the number of result pages to return, merged into one `organic` list with running positions; the other sections come from page 1. It is capped at 10, costs 10 credits per page, and pages Google does not serve are refunded; `data.page` says how many came back. `search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Set `device: "mobile"` for mobile results (default `"desktop"`; mobile has no `total_results`) and `aiOverview: true` to also get Google's AI overview in `data.ai_overview` (default false). Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
 
 ## Map
 
@@ -219,6 +229,7 @@ try {
 - `NoApiKey`: no key was passed and `DATAFUEL_API_KEY` is empty. Thrown before any request.
 - `APIError`: the API refused the request. `.code` holds the API's error code (typed as `ErrorCode`). Subclasses: `Unauthorized`, `Forbidden`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`, `JobNotCancellable`, `AlreadyExists` (a create collided with an existing task or job; nothing was charged, send it again).
 - `ModuleUnavailable`, `EngineUnavailable`: an operator switched a task type or LLM engine off, e.g. during a provider outage. The reason is in the message, nothing is charged, and the SDK does not retry. `df.capabilities()` lists what is on.
+- `Unavailable` (503 `SERVICE_UNAVAILABLE`): a dependency is down for a moment. Unlike the two above, the SDK retries it.
 - `TaskFailed`, and `Blocked` when the target refused: the API accepted the task but the page could not be scraped. The error carries `.result`, so the envelope is still readable. Failed tasks are refunded.
 - `WaitTimeout`: a wait ran out of time. `.id` picks the work back up.
 

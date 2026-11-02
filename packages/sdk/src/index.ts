@@ -56,6 +56,9 @@ export type { ErrorCode } from "./errors.js";
 export { Capabilities, CrawlPage, isDone, Result } from "./models.js";
 export type {
   AI,
+  AIOverview,
+  AIOverviewProduct,
+  AIOverviewReference,
   AIProvider,
   Analytics,
   AnalyticsCounts,
@@ -67,6 +70,7 @@ export type {
   CrawlResult,
   CrawlResultsPage,
   CrawlStatus,
+  DuckAIModel,
   Engine,
   Format,
   Health,
@@ -79,6 +83,7 @@ export type {
   Link,
   ListOptions,
   ListTasksOptions,
+  OrganicResult,
   Payload,
   Profile,
   ProtectionCheck,
@@ -88,6 +93,7 @@ export type {
   ProxyType,
   ScrapeOptions,
   PreviousPeriod,
+  SearchData,
   SiteMap,
   Status,
   StatusCodeBreakdown,

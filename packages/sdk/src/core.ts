@@ -10,6 +10,7 @@ import { APIError, Unavailable } from "./errors.js";
 import type {
   AI,
   AnalyticsOptions,
+  DuckAIModel,
   Engine,
   ListOptions,
   ListTasksOptions,
@@ -237,10 +238,17 @@ export function buildJob(
 /** Options for the llm_scraping module, which reads its proxy country here. */
 export interface AskOptions {
   engine: Engine | string;
+  /** `duck_ai` only; other engines answer 400. API default `gpt-6-luna`. */
+  model?: DuckAIModel | (string & {});
   websearch?: boolean;
+  /**
+   * Second prompt in the same conversation. Supported on `openai` and
+   * `perplexity` only: on other engines the task fails and is refunded.
+   */
   followUp?: string;
   country?: string;
   location?: string;
+  /** @deprecated Ignored by the API: answers are always json. */
   format?: string;
 }
 
@@ -250,6 +258,7 @@ export function askAttributes(
   options: AskOptions,
 ): Record<string, unknown> {
   const attrs: Record<string, unknown> = { [promptField]: prompt, engine: options.engine };
+  if (options.model) attrs.model = options.model;
   if (options.websearch) attrs.websearch = true;
   if (options.followUp) attrs.follow_up_prompt = options.followUp;
   if (options.country) attrs.proxy_country = options.country;
@@ -364,7 +373,11 @@ export interface SearchOptions {
   language?: string;
   /** Canonical location name. Give at most one of location, uule, lat/lon. */
   location?: string;
-  /** 1-based, default 1. */
+  /**
+   * Result pages to return, merged into one `organic` list with running
+   * positions; the other sections come from page 1. Default 1, capped at 10.
+   * Costs 10 credits per page; pages Google does not serve are refunded.
+   */
   page?: number;
   /** e.g. "google.de". */
   googleDomain?: string;
@@ -385,7 +398,7 @@ export interface SearchOptions {
   ludocid?: string;
   lsig?: string;
   ibp?: string;
-  /** Default desktop. */
+  /** Default desktop. Mobile results carry no `total_results`. */
   device?: "desktop" | "mobile";
   /** Also return Google's AI overview. Default false. */
   aiOverview?: boolean;
