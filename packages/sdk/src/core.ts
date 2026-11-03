@@ -237,9 +237,10 @@ export function buildJob(
 
 /** Options for the llm_scraping module, which reads its proxy country here. */
 export interface AskOptions {
-  engine: Engine | string;
+  engine: Engine | (string & {});
   /** `duck_ai` only; other engines answer 400. API default `gpt-6-luna`. */
   model?: DuckAIModel | (string & {});
+  /** On `duck_ai`, only the `tinfoil/*` models use it; other `duck_ai` models ignore it. */
   websearch?: boolean;
   /**
    * Second prompt in the same conversation. Supported on `openai` and

@@ -43,6 +43,7 @@ describe("errors", () => {
     [429, "CONCURRENCY_LIMIT_REACHED", datafuel.RateLimited],
     [503, "MODULE_UNAVAILABLE", datafuel.ModuleUnavailable],
     [503, "ENGINE_UNAVAILABLE", datafuel.EngineUnavailable],
+    [503, "SERVICE_UNAVAILABLE", datafuel.Unavailable],
     [500, "INTERNAL_ERROR", datafuel.APIError],
   ])("maps %i %s onto the right class", async (status, code, expected) => {
     const api = new Recorder(errorResponse(status, code));
