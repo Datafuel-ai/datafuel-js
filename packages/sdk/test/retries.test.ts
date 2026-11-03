@@ -77,6 +77,12 @@ describe("retries", () => {
     expect(api.requests).toHaveLength(1);
   });
 
+  it("retries a 503 outage", async () => {
+    const api = new Recorder(errorResponse(503, "SERVICE_UNAVAILABLE"), completed());
+    await expect(client(api).scrape("https://example.com")).resolves.toMatchObject({ ok: true });
+    expect(api.requests).toHaveLength(2);
+  });
+
   it("retries transport errors", async () => {
     let calls = 0;
     const api = new Recorder(completed());

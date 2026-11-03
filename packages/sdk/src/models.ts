@@ -28,7 +28,16 @@ export function isDone(status: string | undefined): boolean {
 export type Format = "html" | "markdown" | "json" | "png" | "jpeg";
 
 /** AI assistant `ask` can query. Engines can be switched off at runtime. */
-export type Engine = "openai" | "gemini" | "google_ai_mode" | "perplexity" | "copilot";
+export type Engine = "openai" | "gemini" | "google_ai_mode" | "perplexity" | "copilot" | "duck_ai";
+
+/** The duck.ai model a `duck_ai` ask uses. API default `gpt-6-luna`. */
+export type DuckAIModel =
+  | "gpt-6-luna"
+  | "gpt-5.4-mini"
+  | "claude-haiku-4-5"
+  | "mistral-small-2603"
+  | "tinfoil/gpt-oss-120b"
+  | "tinfoil/gemma4-31b";
 
 /** Proxy plan. Matched case-insensitively; deployments may define others. */
 export type ProxyType = "Basic" | "Premium" | (string & {});
@@ -153,6 +162,8 @@ export class Result {
   /** Anti-bot vendor recognised when blocked. */
   readonly protection: string | undefined;
   readonly error: string | undefined;
+  /** LLM engine the task asked for; `llm_scraping` tasks only. */
+  readonly engine: string | undefined;
   /** The raw `result` object. Prefer `text`, `data` and `image`. */
   readonly payload: Payload | undefined;
   /** Everything the API sent, including fields this SDK does not know yet. */
@@ -170,6 +181,7 @@ export class Result {
     this.blocked = raw.blocked === true;
     this.protection = str(raw.protection);
     this.error = str(raw.error);
+    this.engine = str(raw.engine);
     this.payload =
       raw.result !== null && typeof raw.result === "object" ? (raw.result as Payload) : undefined;
   }
@@ -227,6 +239,62 @@ export class Result {
       throw this.blocked ? new Blocked(this) : new TaskFailed(this);
     }
   }
+}
+
+/** A product card in Google's AI overview. */
+export interface AIOverviewProduct {
+  title: string;
+  price?: string;
+  source?: string;
+  rating?: number;
+  reviews?: number;
+  link?: string;
+}
+
+/** A source Google's AI overview cites. */
+export interface AIOverviewReference {
+  title: string;
+  source?: string;
+  snippet?: string;
+  url?: string;
+  redirect?: string;
+}
+
+/** Google's AI overview, returned when `search` ran with `aiOverview`. */
+export interface AIOverview {
+  text: string;
+  products?: AIOverviewProduct[];
+  references?: AIOverviewReference[];
+}
+
+/** One organic result. Positions run across all returned pages. */
+export interface OrganicResult {
+  position: number;
+  title: string;
+  url?: string;
+  displayed_link?: string;
+  source?: string;
+  date?: string;
+  snippet?: string;
+  highlighted?: string[];
+  redirect?: string;
+}
+
+/**
+ * The parsed results page of a json `search`: cast `result.data` to it. Only
+ * the main fields are typed; the other sections pass through as sent.
+ */
+export interface SearchData {
+  query: string;
+  url: string;
+  /** Result pages returned, merged into `organic`. */
+  page?: number;
+  total_pages?: number;
+  /** Desktop only. */
+  total_results?: number;
+  ai_overview?: AIOverview;
+  organic?: OrganicResult[];
+  [section: string]: unknown;
 }
 
 /** One crawled page: where it was found, plus the scrape result. */
