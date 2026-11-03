@@ -14,6 +14,16 @@ const df = new DataFuel(); // or new DataFuel("df_key_..."); reads DATAFUEL_API_
 const markdown = await df.markdown("https://example.com");
 ```
 
+## Authentication
+
+Get a scraping key (`df_key_…`) from your [DataFuel dashboard](https://dashboard.datafuel.ai) and set it as `DATAFUEL_API_KEY`:
+
+```bash
+export DATAFUEL_API_KEY=df_key_...
+```
+
+`new DataFuel()` reads the variable; `new DataFuel("df_key_...")` takes the key directly. With neither, the first call throws `NoApiKey` before anything is sent. The key goes out in the `X-API-Key` header. Keep it server-side: never ship it in browser or app code. Rotate it with `resetApiKey()`.
+
 ## Pick the call
 
 | You have                     | Call                                                    | Waits?        |
