@@ -17,12 +17,14 @@ import type {
   Proxy,
   ScrapeOptions,
   TransactionsOptions,
+  Webhook,
+  WebhookDeliveriesOptions,
 } from "./models.js";
 
 export const DEFAULT_BASE_URL = "https://scraping-api.datafuel.ai/api/v1";
 
 /** Kept in step with package.json by a test; see test/hardening.test.ts. */
-export const VERSION = "0.5.1";
+export const VERSION = "0.6.0";
 
 /** How long a synchronous call waits for a result before giving up. */
 export const DEFAULT_TIMEOUT_MS = 180_000;
@@ -187,10 +189,15 @@ export function proxySession(proxy: Proxy | undefined): Record<string, unknown> 
 export function envelope(
   taskType: string,
   attributes: Record<string, unknown>,
-  extra: { proxy?: Proxy | undefined; multithreaded?: boolean | undefined } = {},
+  extra: {
+    proxy?: Proxy | undefined;
+    multithreaded?: boolean | undefined;
+    webhook?: Webhook | undefined;
+  } = {},
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { type: taskType, ...proxyEnvelope(extra.proxy) };
   if (extra.multithreaded !== undefined) body.multithreaded = extra.multithreaded;
+  if (extra.webhook) body.webhook = extra.webhook;
   body.attributes = attributes;
   return body;
 }
@@ -224,13 +231,14 @@ export function buildJob(
   proxy: Proxy | undefined,
   sequential: boolean,
   idempotencyKey: string,
+  webhook?: Webhook,
 ): Request {
   const attrs = { ...scrapeAttributes(options), urls: [...urls], ...proxySession(proxy) };
   return new Request(
     "POST",
     "/job",
     undefined,
-    envelope("unlocker", attrs, { proxy, multithreaded: !sequential }),
+    envelope("unlocker", attrs, { proxy, multithreaded: !sequential, webhook }),
     idempotencyKey,
   );
 }
@@ -278,13 +286,14 @@ export function buildAskJob(
   options: AskOptions,
   sequential: boolean,
   idempotencyKey: string,
+  webhook?: Webhook,
 ): Request {
   const attrs = askAttributes("prompts", [...prompts], options);
   return new Request(
     "POST",
     "/job",
     undefined,
-    envelope("llm_scraping", attrs, { multithreaded: !sequential }),
+    envelope("llm_scraping", attrs, { multithreaded: !sequential, webhook }),
     idempotencyKey,
   );
 }
@@ -337,6 +346,8 @@ export interface CrawlOptions extends ScrapeOptions {
   allowBackwardLinks?: boolean;
   /** Pages in flight, default 5. */
   concurrency?: number;
+  /** One signed POST when the crawl finishes. */
+  webhook?: Webhook;
 }
 
 export function buildCrawl(
@@ -361,13 +372,23 @@ export function buildCrawl(
     "POST",
     "/crawl",
     undefined,
-    envelope("crawl", attrs, { proxy }),
+    envelope("crawl", attrs, { proxy, webhook: options.webhook }),
     idempotencyKey,
   );
 }
 
 /** Options for `search`, the Google SERP module. Proxy type is not used. */
 export interface SearchOptions {
+  /**
+   * `google_search` (default), or `google_shopping` to read one product page
+   * at `url`: offers, rating, reviews, specifications, variants. Shopping
+   * takes `country`, `language`, `googleDomain` and `format` only.
+   */
+  engine?: "google_search" | "google_shopping";
+  /** `google_shopping`: a `/search` link with `ibp=oshop` and `prds`, sent instead of the query. */
+  url?: string;
+  /** `google_shopping` jobs: the product links, sent instead of the queries. */
+  urls?: string[];
   /** Google `gl`, e.g. "us". */
   country?: string;
   /** Google `hl`, e.g. "en". */
@@ -380,6 +401,12 @@ export interface SearchOptions {
    * Costs 10 credits per page; pages Google does not serve are refunded.
    */
   page?: number;
+  /**
+   * Result offset of the first page, a multiple of 10 up to 90: `start: 10,
+   * page: 1` returns page 2 only. Pages from separate requests can repeat or
+   * miss results; for one consistent list use `page` alone.
+   */
+  start?: number;
   /** e.g. "google.de". */
   googleDomain?: string;
   uule?: string;
@@ -404,6 +431,11 @@ export interface SearchOptions {
   /** Also return Google's AI overview. Default false. */
   aiOverview?: boolean;
   /**
+   * Resolve Google's `/goto` links to their targets, a few seconds more.
+   * Without it most results carry only `redirect`.
+   */
+  resolveUrl?: boolean;
+  /**
    * Accepted but not used yet: searches leave through DataFuel's own pool.
    * Target a market with `country` and `language`.
    */
@@ -417,8 +449,12 @@ export function searchAttributes(
   query: string | string[],
   options: SearchOptions,
 ): Record<string, unknown> {
-  const attrs: Record<string, unknown> = { [queryField]: query };
+  const attrs: Record<string, unknown> = {};
+  if (options.url) attrs.url = options.url;
+  else if (options.urls?.length) attrs.urls = [...options.urls];
+  else attrs[queryField] = query;
   const strings: [keyof SearchOptions, string][] = [
+    ["engine", "engine"],
     ["country", "country"],
     ["language", "language"],
     ["location", "location"],
@@ -442,12 +478,14 @@ export function searchAttributes(
     if (options[option]) attrs[attribute] = options[option];
   }
   if (options.page) attrs.page = options.page;
+  if (options.start) attrs.start = options.start;
   if (options.radius) attrs.radius = options.radius;
   if (options.lat !== undefined) attrs.lat = options.lat;
   if (options.lon !== undefined) attrs.lon = options.lon;
   if (options.nfpr !== undefined) attrs.nfpr = options.nfpr;
   if (options.filter !== undefined) attrs.filter = options.filter;
   if (options.aiOverview) attrs.ai_overview = true;
+  if (options.resolveUrl) attrs.resolve_url = true;
   return attrs;
 }
 
@@ -465,13 +503,14 @@ export function buildSearchJob(
   options: SearchOptions,
   sequential: boolean,
   idempotencyKey: string,
+  webhook?: Webhook,
 ): Request {
   const attrs = searchAttributes("queries", [...queries], options);
   return new Request(
     "POST",
     "/job",
     undefined,
-    envelope("serp", attrs, { multithreaded: !sequential }),
+    envelope("serp", attrs, { multithreaded: !sequential, webhook }),
     idempotencyKey,
   );
 }
@@ -483,6 +522,17 @@ export function crawlResultsRequest(crawlId: string, cursor?: string, limit?: nu
   return new Request(
     "GET",
     `/crawl/${pathSegment(crawlId)}/results`,
+    Object.keys(params).length > 0 ? params : undefined,
+  );
+}
+
+export function jobResultsRequest(jobId: string, cursor?: string, limit?: number): Request {
+  const params: Record<string, string> = {};
+  if (cursor) params.cursor = cursor;
+  if (limit) params.limit = String(limit);
+  return new Request(
+    "GET",
+    `/job/${pathSegment(jobId)}/results`,
     Object.keys(params).length > 0 ? params : undefined,
   );
 }
@@ -551,6 +601,17 @@ export function transactionsRequest(options: TransactionsOptions): Request {
     ["limit", options.limit],
   ]);
   return new Request("GET", "/users/@me/transactions", params);
+}
+
+export function webhookDeliveriesRequest(options: WebhookDeliveriesOptions): Request {
+  const params = query([
+    ["endpoint_id", options.endpointId],
+    ["job_id", options.jobId],
+    ["status", options.status],
+    ["limit", options.limit],
+    ["cursor", options.cursor],
+  ]);
+  return new Request("GET", "/webhooks/deliveries", params);
 }
 
 export function analyticsRequest(options: AnalyticsOptions): Request {
