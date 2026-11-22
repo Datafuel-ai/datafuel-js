@@ -1,6 +1,6 @@
 /** Request options and response shapes. */
 
-import { Blocked, DataFuelError, TaskFailed } from "./errors.js";
+import { Blocked, DataFuelError, ResultExpired, TaskFailed } from "./errors.js";
 
 /** State of a task, job or crawl. Unknown states are treated as not final. */
 export type Status =
@@ -136,7 +136,6 @@ export interface CallOptions {
 /** The raw `result` object of a task. */
 export interface Payload {
   data?: unknown;
-  /** `expired` once the stored body passed its 30-day retention. */
   status?: Status | "expired";
   error_detail?: string;
   status_code?: number;
@@ -200,10 +199,7 @@ export class Result {
     return !this.expired && !isDone(this.state);
   }
 
-  /**
-   * Whether the result body was deleted after the 30-day retention. Job and
-   * crawl results keep such an entry with its metadata and no data.
-   */
+  /** The body passed its 30-day retention; job and crawl entries keep only metadata. */
   get expired(): boolean {
     return this.payload?.status === "expired";
   }
@@ -236,17 +232,22 @@ export class Result {
 
   /** `data`, or throw when the task carried none. */
   requireData(): unknown {
+    if (this.expired) throw expiredError(this);
     if (this.data === undefined || this.data === null) {
       throw new DataFuelError(`result has no data (status ${this.state})`);
     }
     return this.data;
   }
 
-  /** Throw TaskFailed, or Blocked, when this task failed. Refunded either way. */
+  /**
+   * Throw TaskFailed, or Blocked, when this task failed (refunded either way),
+   * and ResultExpired when its result is past retention.
+   */
   raiseForStatus(): void {
     if (this.state === "failed") {
       throw this.blocked ? new Blocked(this) : new TaskFailed(this);
     }
+    if (this.expired) throw expiredError(this);
   }
 }
 
@@ -364,7 +365,6 @@ export interface CrawlStatus {
    * `creditsUsed` over the pages for the net figure.
    */
   total_cost: number;
-  /** The crawl's webhook, when it was created with one. */
   webhook_url?: string;
   /** Whether the crawl reached a final state. */
   done: boolean;
@@ -394,7 +394,6 @@ export interface JobStatus {
   tasks_done: number;
   tasks_remaining: number;
   total_cost: number;
-  /** The job's webhook, when it was created with one. */
   webhook_url?: string;
   done: boolean;
 }
@@ -414,13 +413,12 @@ export interface JobResults {
   tasks: Result[];
 }
 
-/** One page of a job's task results, in task order. The counters cover the whole job. */
+/** The counters cover the whole job. */
 export interface JobResultsPage {
   tasks_count: number;
   tasks_failed: number;
   tasks_complete: number;
   tasks: Result[];
-  /** Absent on the last page. */
   nextCursor?: string;
 }
 
@@ -697,7 +695,6 @@ export interface Capability {
   enabled: boolean;
   /** Operator's note when switched off. */
   reason?: string;
-  /** Engines that take `model`: the accepted values, the default first. */
   models?: string[];
 }
 
@@ -722,34 +719,28 @@ export class Capabilities {
   }
 }
 
-/**
- * One signed POST when a job or crawl finishes. Verify it with any Standard
- * Webhooks library and the secret from {@link DataFuel.webhookSecret}.
- */
+/** Verify deliveries with any Standard Webhooks library and {@link DataFuel.webhookSecret}. */
 export interface Webhook {
   url: string;
   /** JSON object of at most 4096 bytes, echoed in the event. */
   metadata?: Record<string, unknown>;
 }
 
-/** Signs webhooks. After a rotation the previous secret keeps signing until `previous_expires_at`. */
+/** After a rotation the previous secret keeps signing until `previous_expires_at`. */
 export interface WebhookSecret {
   secret: string;
-  /** RFC 3339. */
   created_at: string;
   rotated_at?: string;
   previous_expires_at?: string;
 }
 
-/** A URL that receives the account's job and crawl events. */
 export interface WebhookEndpoint {
   id: string;
   url: string;
   description: string;
-  /** Names such as `job.completed`, or categories: `job.*`, `crawl.*`. */
+  /** Names such as `job.completed`, or the categories `job.*` and `crawl.*`. */
   event_types: string[];
   enabled: boolean;
-  /** Why DataFuel switched the endpoint off. */
   disabled_reason?: string;
   last_success_at?: string;
   failing_since?: string;
@@ -757,22 +748,21 @@ export interface WebhookEndpoint {
   updated_at: string;
 }
 
-/** An endpoint with its own secret, returned only when it is created. */
+/** `secret` is returned only on create and by {@link DataFuel.rotateWebhookEndpointSecret}. */
 export interface CreatedWebhookEndpoint extends WebhookEndpoint {
   secret: string;
 }
 
-/** A new endpoint: a URL and 1 to 20 event types. */
 export interface CreateWebhookEndpointOptions {
   url: string;
+  /** 1 to 20. */
   eventTypes: string[];
   /** At most 256 characters. */
   description?: string;
-  /** API default true. */
   enabled?: boolean;
 }
 
-/** The fields to change; at least one. `enabled: true` re-enables a disabled endpoint. */
+/** At least one field. */
 export interface UpdateWebhookEndpointOptions {
   url?: string;
   eventTypes?: string[];
@@ -780,7 +770,6 @@ export interface UpdateWebhookEndpointOptions {
   enabled?: boolean;
 }
 
-/** One event sent, or being sent, to one URL. */
 export interface WebhookDelivery {
   id: string;
   event_id: string;
@@ -798,7 +787,6 @@ export interface WebhookDelivery {
   updated_at: string;
 }
 
-/** Filters and paging for {@link DataFuel.listWebhookDeliveries}. */
 export interface WebhookDeliveriesOptions {
   endpointId?: string;
   jobId?: string;
@@ -808,11 +796,13 @@ export interface WebhookDeliveriesOptions {
   cursor?: string;
 }
 
-/** One page of deliveries, newest first. */
 export interface WebhookDeliveriesPage {
   deliveries: WebhookDelivery[];
-  /** Absent on the last page. */
   nextCursor?: string;
+}
+
+function expiredError(result: Result): ResultExpired {
+  return new ResultExpired(410, "RESULT_EXPIRED", result.payload?.error_detail || "result expired");
 }
 
 function str(value: unknown): string | undefined {

@@ -124,7 +124,7 @@ const id = await df.startCrawl("https://example.com/docs", {
 const status = await df.waitCrawl(id); // status.stop_reason: max_pages, max_depth_exhausted, ...
 
 for await (const page of df.crawlPages(id)) {
-  if (page.pending || !page.ok) continue; // still running, or a failed page (refunded)
+  if (page.pending || !page.ok) continue; // still running, failed (refunded), or expired
   console.log(page.url, page.depth, page.text.length);
 }
 ```
@@ -197,7 +197,7 @@ const id = await df.createJob(urls, {
 const { secret } = await df.webhookSecret(); // verify deliveries with any Standard Webhooks library
 ```
 
-To receive every job or crawl event, create an account endpoint. Its own secret is returned once:
+To receive every job or crawl event, create an account endpoint. Its own secret is returned only on create and by `rotateWebhookEndpointSecret`, so store it:
 
 ```ts
 const endpoint = await df.createWebhookEndpoint({

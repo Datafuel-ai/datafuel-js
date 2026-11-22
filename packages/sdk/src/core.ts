@@ -346,7 +346,6 @@ export interface CrawlOptions extends ScrapeOptions {
   allowBackwardLinks?: boolean;
   /** Pages in flight, default 5. */
   concurrency?: number;
-  /** One signed POST when the crawl finishes. */
   webhook?: Webhook;
 }
 
@@ -380,14 +379,13 @@ export function buildCrawl(
 /** Options for `search`, the Google SERP module. Proxy type is not used. */
 export interface SearchOptions {
   /**
-   * `google_search` (default), or `google_shopping` to read one product page
-   * at `url`: offers, rating, reviews, specifications, variants. Shopping
-   * takes `country`, `language`, `googleDomain` and `format` only.
+   * Default `google_search`. `google_shopping` reads one product page at `url`
+   * and takes only `country`, `language`, `googleDomain` and `format`.
    */
   engine?: "google_search" | "google_shopping";
-  /** `google_shopping`: a `/search` link with `ibp=oshop` and `prds`, sent instead of the query. */
+  /** `google_shopping`: a `/search` link with `ibp=oshop` and `prds`. Conflicts with a query. */
   url?: string;
-  /** `google_shopping` jobs: the product links, sent instead of the queries. */
+  /** `google_shopping` search jobs only: the product links. Conflicts with queries. */
   urls?: string[];
   /** Google `gl`, e.g. "us". */
   country?: string;
@@ -403,8 +401,10 @@ export interface SearchOptions {
   page?: number;
   /**
    * Result offset of the first page, a multiple of 10 up to 90: `start: 10,
-   * page: 1` returns page 2 only. Pages from separate requests can repeat or
-   * miss results; for one consistent list use `page` alone.
+   * page: 1` returns page 2 only. `page` is capped at `10 - start / 10`, which
+   * also sets what is billed: `start: 50, page: 10` returns and bills 5 pages.
+   * Pages from separate requests can repeat or miss results; for one consistent
+   * list use `page` alone.
    */
   start?: number;
   /** e.g. "google.de". */
@@ -430,10 +430,6 @@ export interface SearchOptions {
   device?: "desktop" | "mobile";
   /** Also return Google's AI overview. Default false. */
   aiOverview?: boolean;
-  /**
-   * Resolve Google's `/goto` links to their targets, a few seconds more.
-   * Without it most results carry only `redirect`.
-   */
   resolveUrl?: boolean;
   /**
    * Accepted but not used yet: searches leave through DataFuel's own pool.
@@ -450,9 +446,10 @@ export function searchAttributes(
   options: SearchOptions,
 ): Record<string, unknown> {
   const attrs: Record<string, unknown> = {};
+  if (query.length > 0) attrs[queryField] = query;
   if (options.url) attrs.url = options.url;
-  else if (options.urls?.length) attrs.urls = [...options.urls];
-  else attrs[queryField] = query;
+  if (options.urls?.length) attrs.urls = [...options.urls];
+  if (Object.keys(attrs).length === 0) attrs[queryField] = query;
   const strings: [keyof SearchOptions, string][] = [
     ["engine", "engine"],
     ["country", "country"],
@@ -494,6 +491,9 @@ export function buildSearch(
   options: SearchOptions,
   idempotencyKey: string,
 ): Request {
+  if (options.urls?.length) {
+    throw new TypeError("search does not take urls: use createSearchJob, or url for one product");
+  }
   const attrs = searchAttributes("query", query, options);
   return new Request("POST", "/task", undefined, envelope("serp", attrs), idempotencyKey);
 }
@@ -505,6 +505,9 @@ export function buildSearchJob(
   idempotencyKey: string,
   webhook?: Webhook,
 ): Request {
+  if (options.url) {
+    throw new TypeError("search jobs do not take url: use urls, or searchProduct for one product");
+  }
   const attrs = searchAttributes("queries", [...queries], options);
   return new Request(
     "POST",

@@ -75,6 +75,26 @@ describe("expired results", () => {
     const api = new Recorder(errorResponse(410, "RESULT_EXPIRED"));
     await expect(client(api).getTask("t1")).rejects.toBeInstanceOf(ResultExpired);
   });
+
+  it("throws ResultExpired from raiseForStatus and requireData", () => {
+    const result = new Result({
+      id: "t1",
+      status: "completed",
+      credits_used: 1,
+      result: { status: "expired", error_detail: "body deleted" },
+    });
+    for (const guard of [() => result.raiseForStatus(), () => result.requireData()]) {
+      let thrown: unknown;
+      try {
+        guard();
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(ResultExpired);
+      expect(thrown).toMatchObject({ status: 410, code: "RESULT_EXPIRED" });
+      expect((thrown as Error).message).toContain("body deleted");
+    }
+  });
 });
 
 describe("search options", () => {
@@ -101,6 +121,51 @@ describe("search options", () => {
     const attrs = api.body.attributes as Record<string, unknown>;
     expect(attrs).not.toHaveProperty("queries");
     expect(attrs.urls).toEqual(["/a", "/b"]);
+  });
+
+  it("sends both url and query", async () => {
+    const api = new Recorder(completed({}));
+    await client(api).search("crm", { url: "/search?ibp=oshop&prds=pid:1" });
+    const attrs = api.body.attributes as Record<string, unknown>;
+    expect(attrs.query).toBe("crm");
+    expect(attrs.url).toBe("/search?ibp=oshop&prds=pid:1");
+  });
+
+  it("sends both urls and queries on a job", async () => {
+    const api = new Recorder({ id: "j1" });
+    await client(api).createSearchJob(["a", "b"], { urls: ["/a", "/b"] });
+    const attrs = api.body.attributes as Record<string, unknown>;
+    expect(attrs.queries).toEqual(["a", "b"]);
+    expect(attrs.urls).toEqual(["/a", "/b"]);
+  });
+
+  it("sends no empty query field for a product or a shopping job", async () => {
+    const api = new Recorder(completed({}, { id: "j1" }));
+    const df = client(api);
+    await df.searchProduct("/search?ibp=oshop&prds=pid:1");
+    await df.createSearchJob([], { engine: "google_shopping", urls: ["/a", "/b"] });
+    const [product, job] = api.bodies() as { attributes: Record<string, unknown> }[];
+    expect(product!.attributes).not.toHaveProperty("query");
+    expect(job!.attributes).not.toHaveProperty("queries");
+  });
+
+  it("rejects urls on a single search before any request", async () => {
+    const api = new Recorder(completed({}));
+    await expect(client(api).search("crm", { urls: ["/a", "/b"] })).rejects.toBeInstanceOf(
+      TypeError,
+    );
+    expect(api.requests).toHaveLength(0);
+  });
+
+  it("rejects url on a search job before any request", async () => {
+    const api = new Recorder({ id: "j1" });
+    const df = client(api);
+    const url = "/search?ibp=oshop&prds=pid:1";
+    await expect(df.createSearchJob(["a", "b"], { url })).rejects.toBeInstanceOf(TypeError);
+    await expect(df.runSearchJob([], { engine: "google_shopping", url })).rejects.toBeInstanceOf(
+      TypeError,
+    );
+    expect(api.requests).toHaveLength(0);
   });
 });
 

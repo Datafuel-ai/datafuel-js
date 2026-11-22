@@ -261,11 +261,7 @@ export class DataFuel {
     return this.runTask(request, options);
   }
 
-  /**
-   * Read one Google Shopping product page: offers, rating, reviews,
-   * specifications, variants. `url` is a `/search` link with `ibp=oshop` and
-   * `prds`, e.g. a `product_grids` link from {@link search}.
-   */
+  /** `url` is a `/search` link with `ibp=oshop` and `prds`, e.g. from `product_grids`. */
   async searchProduct(url: string, options: SearchOptions & CallOptions = {}): Promise<Result> {
     return this.search("", { ...options, engine: "google_shopping", url });
   }
@@ -476,8 +472,8 @@ export class DataFuel {
    * as it takes. For large jobs prefer {@link jobResultsPage}, which does not
    * hold every result in memory.
    *
-   * A job completes even when some of its tasks failed: check `task.ok` or call
-   * `task.raiseForStatus()` per task.
+   * A job completes even when some of its tasks failed or expired: check
+   * `task.ok` or call `task.raiseForStatus()` per task.
    */
   async jobResults(jobId: string, options: CallOptions = {}): Promise<JobResults> {
     const tasks: Result[] = [];
@@ -508,9 +504,8 @@ export class DataFuel {
   }
 
   /**
-   * One page of a job's results, in task order. `limit` unset uses the API
-   * default (50, max 100). Pass `nextCursor` back as `cursor` until it is
-   * absent. Readable while the job runs; unfinished tasks report `pending`.
+   * `limit`: API default 50, max 100. Readable while the job runs; unfinished
+   * tasks report `pending`.
    */
   async jobResultsPage(
     jobId: string,
@@ -746,21 +741,19 @@ export class DataFuel {
     return strField(body, "api_key");
   }
 
-  // --- webhooks ----------------------------------------------------------
-
-  /** The account's signing secret, created on first use. Store it like a password. */
+  /** Created on first use. Store it like a password. */
   async webhookSecret(options: CallOptions = {}): Promise<WebhookSecret> {
     const body = await this.send(new core.Request("GET", "/webhooks/secret"), options);
     return record(body) as unknown as WebhookSecret;
   }
 
-  /** Replace the signing secret. The old one keeps signing for 24 hours. */
+  /** The old secret keeps signing for 24 hours. */
   async rotateWebhookSecret(options: CallOptions = {}): Promise<WebhookSecret> {
     const body = await this.send(new core.Request("POST", "/webhooks/secret/rotate"), options);
     return record(body) as unknown as WebhookSecret;
   }
 
-  /** Subscribe a URL to the account's events. Its `secret` is returned only here. */
+  /** Its `secret` is returned only here and by {@link rotateWebhookEndpointSecret}: store it. */
   async createWebhookEndpoint(
     endpoint: CreateWebhookEndpointOptions,
     options: CallOptions = {},
@@ -775,13 +768,11 @@ export class DataFuel {
     return record(await this.send(request, options)) as unknown as CreatedWebhookEndpoint;
   }
 
-  /** The account's webhook endpoints. */
   async listWebhookEndpoints(options: CallOptions = {}): Promise<WebhookEndpoint[]> {
     const body = record(await this.send(new core.Request("GET", "/webhooks/endpoints"), options));
     return array(body.endpoints) as WebhookEndpoint[];
   }
 
-  /** One webhook endpoint. */
   async getWebhookEndpoint(id: string, options: CallOptions = {}): Promise<WebhookEndpoint> {
     const path = `/webhooks/endpoints/${core.pathSegment(id)}`;
     return record(
@@ -789,7 +780,6 @@ export class DataFuel {
     ) as unknown as WebhookEndpoint;
   }
 
-  /** Change the given fields; `enabled: true` re-enables a disabled endpoint. */
   async updateWebhookEndpoint(
     id: string,
     changes: UpdateWebhookEndpointOptions,
@@ -805,13 +795,12 @@ export class DataFuel {
     return record(await this.send(request, options)) as unknown as WebhookEndpoint;
   }
 
-  /** Remove a webhook endpoint. */
   async deleteWebhookEndpoint(id: string, options: CallOptions = {}): Promise<void> {
     const path = `/webhooks/endpoints/${core.pathSegment(id)}`;
     await this.send(new core.Request("DELETE", path), options);
   }
 
-  /** Replace an endpoint's secret. The old one keeps signing for 24 hours. */
+  /** Store the new secret: it is not shown again. The old one keeps signing for 24 hours. */
   async rotateWebhookEndpointSecret(id: string, options: CallOptions = {}): Promise<WebhookSecret> {
     const path = `/webhooks/endpoints/${core.pathSegment(id)}/secret/rotate`;
     return record(
@@ -819,7 +808,6 @@ export class DataFuel {
     ) as unknown as WebhookSecret;
   }
 
-  /** Queue a `webhook.test` event for the endpoint. */
   async testWebhookEndpoint(id: string, options: CallOptions = {}): Promise<WebhookDelivery> {
     const path = `/webhooks/endpoints/${core.pathSegment(id)}/test`;
     return record(
@@ -827,7 +815,6 @@ export class DataFuel {
     ) as unknown as WebhookDelivery;
   }
 
-  /** One page of deliveries, newest first. Pass `nextCursor` back as `cursor`. */
   async listWebhookDeliveries(
     options: WebhookDeliveriesOptions & CallOptions = {},
   ): Promise<WebhookDeliveriesPage> {
@@ -839,7 +826,6 @@ export class DataFuel {
     };
   }
 
-  /** Send a delivery again. */
   async retryWebhookDelivery(id: string, options: CallOptions = {}): Promise<WebhookDelivery> {
     const path = `/webhooks/deliveries/${core.pathSegment(id)}/retry`;
     return record(
