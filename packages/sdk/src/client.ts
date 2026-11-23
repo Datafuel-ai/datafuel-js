@@ -11,11 +11,14 @@ import type {
   CallOptions,
   CancelResult,
   Capability,
+  CreatedWebhookEndpoint,
+  CreateWebhookEndpointOptions,
   CrawlResult,
   CrawlResultsPage,
   CrawlStatus,
   Health,
   JobResults,
+  JobResultsPage,
   JobsPage,
   JobStatus,
   JobSummary,
@@ -32,6 +35,13 @@ import type {
   TaskSummary,
   TransactionsOptions,
   TransactionsPage,
+  UpdateWebhookEndpointOptions,
+  Webhook,
+  WebhookDeliveriesOptions,
+  WebhookDeliveriesPage,
+  WebhookDelivery,
+  WebhookEndpoint,
+  WebhookSecret,
 } from "./models.js";
 import { Capabilities, CrawlPage, isDone, Result } from "./models.js";
 
@@ -53,6 +63,9 @@ export interface ClientOptions {
 }
 
 type Send = CallOptions & { timeoutMs?: number; signal?: AbortSignal };
+
+/** The largest page `GET /job/{id}/results` serves. */
+const JOB_RESULTS_PAGE_SIZE = 100;
 
 /**
  * Client for the DataFuel scraping API.
@@ -248,6 +261,11 @@ export class DataFuel {
     return this.runTask(request, options);
   }
 
+  /** `url` is a `/search` link with `ibp=oshop` and `prds`, e.g. from `product_grids`. */
+  async searchProduct(url: string, options: SearchOptions & CallOptions = {}): Promise<Result> {
+    return this.search("", { ...options, engine: "google_shopping", url });
+  }
+
   /**
    * List the URLs of a site without scraping them.
    *
@@ -388,7 +406,7 @@ export class DataFuel {
    */
   async createJob(
     urls: string[],
-    options: ScrapeOptions & CallOptions & { sequential?: boolean } = {},
+    options: ScrapeOptions & CallOptions & { sequential?: boolean; webhook?: Webhook } = {},
   ): Promise<string> {
     const request = core.buildJob(
       urls,
@@ -396,6 +414,7 @@ export class DataFuel {
       options.proxy,
       options.sequential ?? false,
       core.key(options.idempotencyKey),
+      options.webhook,
     );
     return strField(await this.send(request, options), "id");
   }
@@ -403,27 +422,32 @@ export class DataFuel {
   /** Queue a batch of prompts for an AI engine and return the job id. */
   async createAskJob(
     prompts: string[],
-    options: AskOptions & CallOptions & { sequential?: boolean },
+    options: AskOptions & CallOptions & { sequential?: boolean; webhook?: Webhook },
   ): Promise<string> {
     const request = core.buildAskJob(
       prompts,
       options,
       options.sequential ?? false,
       core.key(options.idempotencyKey),
+      options.webhook,
     );
     return strField(await this.send(request, options), "id");
   }
 
-  /** Queue a batch of Google searches and return the job id. */
+  /**
+   * Queue a batch of Google searches and return the job id. For
+   * `google_shopping`, pass the product links in `urls` and `[]` as queries.
+   */
   async createSearchJob(
     queries: string[],
-    options: SearchOptions & CallOptions & { sequential?: boolean } = {},
+    options: SearchOptions & CallOptions & { sequential?: boolean; webhook?: Webhook } = {},
   ): Promise<string> {
     const request = core.buildSearchJob(
       queries,
       options,
       options.sequential ?? false,
       core.key(options.idempotencyKey),
+      options.webhook,
     );
     return strField(await this.send(request, options), "id");
   }
@@ -444,22 +468,59 @@ export class DataFuel {
   }
 
   /**
-   * Return the per-task results of a job.
+   * Return the per-task results of a job, every task, fetching as many pages
+   * as it takes. For large jobs prefer {@link jobResultsPage}, which does not
+   * hold every result in memory.
    *
-   * A job completes even when some of its tasks failed: check `task.ok` or call
-   * `task.raiseForStatus()` per task.
+   * A job completes even when some of its tasks failed or expired: check
+   * `task.ok` or call `task.raiseForStatus()` per task.
    */
   async jobResults(jobId: string, options: CallOptions = {}): Promise<JobResults> {
+    const tasks: Result[] = [];
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await this.jobResultsPage(jobId, {
+        ...options,
+        limit: JOB_RESULTS_PAGE_SIZE,
+        ...(cursor ? { cursor } : {}),
+      });
+      tasks.push(...page.tasks);
+      cursor = page.nextCursor;
+      if (!cursor) {
+        return {
+          id: jobId,
+          tasks_count: page.tasks_count,
+          tasks_failed: page.tasks_failed,
+          tasks_complete: page.tasks_complete,
+          tasks,
+        };
+      }
+      if (seen.has(cursor)) {
+        throw new DataFuelError("the API repeated a job results cursor; stopping to avoid a loop");
+      }
+      seen.add(cursor);
+    }
+  }
+
+  /**
+   * `limit`: API default 50, max 100. Readable while the job runs; unfinished
+   * tasks report `pending`.
+   */
+  async jobResultsPage(
+    jobId: string,
+    options: CallOptions & { cursor?: string; limit?: number } = {},
+  ): Promise<JobResultsPage> {
     const body = record(
-      await this.send(new core.Request("GET", `/job/${core.pathSegment(jobId)}/results`), options),
+      await this.send(core.jobResultsRequest(jobId, options.cursor, options.limit), options),
     );
-    const tasks = Array.isArray(body.tasks_result) ? body.tasks_result : [];
+    const next = typeof body.next_cursor === "string" ? body.next_cursor : undefined;
     return {
-      id: jobId,
       tasks_count: Number(body.tasks_count ?? 0),
       tasks_failed: Number(body.tasks_failed ?? 0),
       tasks_complete: Number(body.tasks_complete ?? 0),
-      tasks: tasks.map((task) => new Result(record(task))),
+      tasks: array(body.tasks_result).map((task) => new Result(record(task))),
+      ...(next ? { nextCursor: next } : {}),
     };
   }
 
@@ -510,7 +571,7 @@ export class DataFuel {
   /** Create a job, wait for it, and return its results. */
   async runJob(
     urls: string[],
-    options: ScrapeOptions & CallOptions & { sequential?: boolean } = {},
+    options: ScrapeOptions & CallOptions & { sequential?: boolean; webhook?: Webhook } = {},
   ): Promise<JobResults> {
     const id = await this.createJob(urls, options);
     await this.waitJob(id, options);
@@ -520,7 +581,7 @@ export class DataFuel {
   /** Create a prompt job, wait for it, and return its results. */
   async runAskJob(
     prompts: string[],
-    options: AskOptions & CallOptions & { sequential?: boolean },
+    options: AskOptions & CallOptions & { sequential?: boolean; webhook?: Webhook },
   ): Promise<JobResults> {
     const id = await this.createAskJob(prompts, options);
     await this.waitJob(id, options);
@@ -530,7 +591,7 @@ export class DataFuel {
   /** Create a search job, wait for it, and return its results. */
   async runSearchJob(
     queries: string[],
-    options: SearchOptions & CallOptions & { sequential?: boolean } = {},
+    options: SearchOptions & CallOptions & { sequential?: boolean; webhook?: Webhook } = {},
   ): Promise<JobResults> {
     const id = await this.createSearchJob(queries, options);
     await this.waitJob(id, options);
@@ -679,6 +740,98 @@ export class DataFuel {
     const body = await this.send(new core.Request("POST", "/users/@me/api-key/reset"), options);
     return strField(body, "api_key");
   }
+
+  /** Created on first use. Store it like a password. */
+  async webhookSecret(options: CallOptions = {}): Promise<WebhookSecret> {
+    const body = await this.send(new core.Request("GET", "/webhooks/secret"), options);
+    return record(body) as unknown as WebhookSecret;
+  }
+
+  /** The old secret keeps signing for 24 hours. */
+  async rotateWebhookSecret(options: CallOptions = {}): Promise<WebhookSecret> {
+    const body = await this.send(new core.Request("POST", "/webhooks/secret/rotate"), options);
+    return record(body) as unknown as WebhookSecret;
+  }
+
+  /** Its `secret` is returned only here and by {@link rotateWebhookEndpointSecret}: store it. */
+  async createWebhookEndpoint(
+    endpoint: CreateWebhookEndpointOptions,
+    options: CallOptions = {},
+  ): Promise<CreatedWebhookEndpoint> {
+    const payload: Record<string, unknown> = {
+      url: endpoint.url,
+      event_types: [...endpoint.eventTypes],
+    };
+    if (endpoint.description !== undefined) payload.description = endpoint.description;
+    if (endpoint.enabled !== undefined) payload.enabled = endpoint.enabled;
+    const request = new core.Request("POST", "/webhooks/endpoints", undefined, payload);
+    return record(await this.send(request, options)) as unknown as CreatedWebhookEndpoint;
+  }
+
+  async listWebhookEndpoints(options: CallOptions = {}): Promise<WebhookEndpoint[]> {
+    const body = record(await this.send(new core.Request("GET", "/webhooks/endpoints"), options));
+    return array(body.endpoints) as WebhookEndpoint[];
+  }
+
+  async getWebhookEndpoint(id: string, options: CallOptions = {}): Promise<WebhookEndpoint> {
+    const path = `/webhooks/endpoints/${core.pathSegment(id)}`;
+    return record(
+      await this.send(new core.Request("GET", path), options),
+    ) as unknown as WebhookEndpoint;
+  }
+
+  async updateWebhookEndpoint(
+    id: string,
+    changes: UpdateWebhookEndpointOptions,
+    options: CallOptions = {},
+  ): Promise<WebhookEndpoint> {
+    const payload: Record<string, unknown> = {};
+    if (changes.url !== undefined) payload.url = changes.url;
+    if (changes.eventTypes !== undefined) payload.event_types = [...changes.eventTypes];
+    if (changes.description !== undefined) payload.description = changes.description;
+    if (changes.enabled !== undefined) payload.enabled = changes.enabled;
+    const path = `/webhooks/endpoints/${core.pathSegment(id)}`;
+    const request = new core.Request("PATCH", path, undefined, payload);
+    return record(await this.send(request, options)) as unknown as WebhookEndpoint;
+  }
+
+  async deleteWebhookEndpoint(id: string, options: CallOptions = {}): Promise<void> {
+    const path = `/webhooks/endpoints/${core.pathSegment(id)}`;
+    await this.send(new core.Request("DELETE", path), options);
+  }
+
+  /** Store the new secret: it is not shown again. The old one keeps signing for 24 hours. */
+  async rotateWebhookEndpointSecret(id: string, options: CallOptions = {}): Promise<WebhookSecret> {
+    const path = `/webhooks/endpoints/${core.pathSegment(id)}/secret/rotate`;
+    return record(
+      await this.send(new core.Request("POST", path), options),
+    ) as unknown as WebhookSecret;
+  }
+
+  async testWebhookEndpoint(id: string, options: CallOptions = {}): Promise<WebhookDelivery> {
+    const path = `/webhooks/endpoints/${core.pathSegment(id)}/test`;
+    return record(
+      await this.send(new core.Request("POST", path), options),
+    ) as unknown as WebhookDelivery;
+  }
+
+  async listWebhookDeliveries(
+    options: WebhookDeliveriesOptions & CallOptions = {},
+  ): Promise<WebhookDeliveriesPage> {
+    const body = record(await this.send(core.webhookDeliveriesRequest(options), options));
+    const next = typeof body.next_cursor === "string" ? body.next_cursor : undefined;
+    return {
+      deliveries: array(body.deliveries) as WebhookDelivery[],
+      ...(next ? { nextCursor: next } : {}),
+    };
+  }
+
+  async retryWebhookDelivery(id: string, options: CallOptions = {}): Promise<WebhookDelivery> {
+    const path = `/webhooks/deliveries/${core.pathSegment(id)}/retry`;
+    return record(
+      await this.send(new core.Request("POST", path), options),
+    ) as unknown as WebhookDelivery;
+  }
 }
 
 export type { Capability };
@@ -742,6 +895,7 @@ function jobStatus(body: unknown): JobStatus {
     tasks_done: raw.tasks_done ?? 0,
     tasks_remaining: raw.tasks_remaining ?? 0,
     total_cost: raw.total_cost ?? 0,
+    ...(raw.webhook_url ? { webhook_url: raw.webhook_url } : {}),
     done: isDone(raw.status),
   };
 }

@@ -36,6 +36,18 @@ export type ErrorCode =
   | "MISSING_TARGET"
   | "UNSUPPORTED_TASK_TYPE"
   | "JOB_REQUIRES_MULTIPLE_TARGETS"
+  | "JOB_TOO_MANY_TARGETS"
+  | "RESULT_EXPIRED"
+  | "INVALID_WEBHOOK_URL"
+  | "INVALID_WEBHOOK_METADATA"
+  | "INVALID_WEBHOOK_ENDPOINT"
+  | "WEBHOOK_ENDPOINT_NOT_FOUND"
+  | "WEBHOOK_DELIVERY_NOT_FOUND"
+  | "WEBHOOK_ENDPOINT_LIMIT_REACHED"
+  | "WEBHOOK_ENDPOINT_EXISTS"
+  | "WEBHOOK_TEST_IN_PROGRESS"
+  | "WEBHOOK_DELIVERY_NOT_RETRYABLE"
+  | "WEBHOOKS_UNAVAILABLE"
   | "INVALID_IDEMPOTENCY_KEY"
   | "IDEMPOTENCY_KEY_REUSED"
   | "INVALID_TASK_ID"
@@ -96,6 +108,11 @@ export class InvalidAttributes extends APIError {}
 export class IdempotencyKeyReused extends APIError {}
 /** 409 JOB_NOT_CANCELLABLE: the job or crawl already finished. */
 export class JobNotCancellable extends APIError {}
+/**
+ * 410 RESULT_EXPIRED: the result passed its 30-day retention. A retry under the
+ * same idempotency key keeps answering 410: to run the task again, use a new key.
+ */
+export class ResultExpired extends APIError {}
 /**
  * 409 TASK_ALREADY_EXISTS / JOB_ALREADY_EXISTS: the create collided with an
  * existing task or job and is not an idempotent replay. Nothing was charged;
@@ -161,6 +178,7 @@ const BY_CODE: Record<string, new (s: number, c: string, m: string, r?: number) 
   IDEMPOTENCY_KEY_REUSED: IdempotencyKeyReused,
   FORBIDDEN: Forbidden,
   JOB_NOT_CANCELLABLE: JobNotCancellable,
+  RESULT_EXPIRED: ResultExpired,
   TASK_ALREADY_EXISTS: AlreadyExists,
   JOB_ALREADY_EXISTS: AlreadyExists,
 };

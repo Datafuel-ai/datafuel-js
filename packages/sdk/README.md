@@ -38,6 +38,7 @@ export DATAFUEL_API_KEY=df_key_...
 | Earlier jobs, tasks, usage   | `listJobs` / `listTasks` / `analytics` / `transactions` | yes           |
 | What a request may contain   | `jsInstructions` / `aiProviders` / `proxyLocations`     | yes           |
 | The wall in front of a URL   | `checkProtection`                                       | yes           |
+| A job or crawl ending        | `webhook` option, or `createWebhookEndpoint`            | no            |
 
 Start with plain `scrape`. Turn on `jsRendering` only when the page comes back empty: it is slower and costs five times the credits on a Basic proxy. `map` a section before you `crawl` it, it costs one credit and tells you how big it is.
 
@@ -123,7 +124,7 @@ const id = await df.startCrawl("https://example.com/docs", {
 const status = await df.waitCrawl(id); // status.stop_reason: max_pages, max_depth_exhausted, ...
 
 for await (const page of df.crawlPages(id)) {
-  if (page.pending || !page.ok) continue; // still running, or a failed page (refunded)
+  if (page.pending || !page.ok) continue; // still running, failed (refunded), or expired
   console.log(page.url, page.depth, page.text.length);
 }
 ```
@@ -151,7 +152,9 @@ for (const task of results.tasks) {
 }
 ```
 
-`sequential: true` runs the URLs one after the other; the default runs them concurrently, bounded by your account's concurrency limit. `runAskJob(prompts, { engine })` and `runSearchJob(queries)` do the same for a batch of prompts or Google searches. A job needs at least two targets.
+`sequential: true` runs the URLs one after the other; the default runs them concurrently, bounded by your account's concurrency limit. `runAskJob(prompts, { engine })` and `runSearchJob(queries)` do the same for a batch of prompts or Google searches. A job needs at least two targets and takes at most 10,000.
+
+`runJob` and `jobResults` return every task, fetching as many result pages as it takes. For a large job, read it a page at a time with `jobResultsPage(id, { cursor, limit })` (default 50, max 100) and pass `nextCursor` back until it is absent.
 
 ## Ask and search
 
@@ -178,6 +181,37 @@ console.log(results.organic?.length, results.ai_overview?.text);
 An answer's `data` is an object with the answer in `text` plus engine-specific fields (`citations` on `duck_ai`); `answer.text` returns it as JSON. `answer.engine` names the engine the task asked for. `model` is accepted with `duck_ai` only (`gpt-6-luna`, `gpt-5.4-mini`, `claude-haiku-4-5`, `mistral-small-2603`, `tinfoil/gpt-oss-120b`, `tinfoil/gemma4-31b`); other engines answer 400. On `duck_ai`, `websearch` only affects the `tinfoil/*` models; other `duck_ai` models ignore it. `followUp` works on `openai` and `perplexity` only: on other engines the task fails and is refunded.
 
 `page` is the number of result pages to return, merged into one `organic` list with running positions; the other sections come from page 1. It is capped at 10, costs 10 credits per page, and pages Google does not serve are refunded; `data.page` says how many came back. `search` also takes `location` (or `uule`, or `lat`/`lon` with `radius`), `googleDomain`, `tbs`, `safe`, `cr`, `lr`, `nfpr` and `filter`. Set `device: "mobile"` for mobile results (default `"desktop"`; mobile has no `total_results`) and `aiOverview: true` to also get Google's AI overview in `data.ai_overview` (default false). Searches leave through DataFuel's own pool: pick the market with `country` and `language`; `proxyCountry` is accepted but not used yet.
+
+`start` is the result offset of the first page, a multiple of 10 up to 90 (`start: 10, page: 1` is page 2 only); pages from separate requests can repeat or miss results, so use `page` alone for one consistent list. `resolveUrl: true` resolves Google's `/goto` links to their targets (a few seconds more); without it most results carry only `redirect`.
+
+`df.searchProduct(url, { country: "us" })` reads one Google Shopping product page (`engine: "google_shopping"`): offers, rating, reviews, specifications, variants. `url` is a `/search` link with `ibp=oshop` and `prds`, e.g. from `product_grids`. For a batch, `createSearchJob([], { engine: "google_shopping", urls })`.
+
+## Webhooks
+
+Pass `webhook` to a job or crawl to get one signed `POST` when it finishes, with counts but no results:
+
+```ts
+const id = await df.createJob(urls, {
+  webhook: { url: "https://example.com/hooks/datafuel", metadata: { run: "42" } },
+});
+const { secret } = await df.webhookSecret(); // verify deliveries with any Standard Webhooks library
+```
+
+To receive every job or crawl event, create an account endpoint. Its own secret is returned only on create and by `rotateWebhookEndpointSecret`, so store it:
+
+```ts
+const endpoint = await df.createWebhookEndpoint({
+  url: "https://example.com/hooks/datafuel",
+  eventTypes: ["crawl.*", "job.failed"],
+});
+await df.testWebhookEndpoint(endpoint.id);
+const { deliveries } = await df.listWebhookDeliveries({
+  endpointId: endpoint.id,
+  status: "failed",
+});
+```
+
+`getWebhookEndpoint`, `listWebhookEndpoints`, `updateWebhookEndpoint`, `deleteWebhookEndpoint`, `rotateWebhookSecret`, `rotateWebhookEndpointSecret` and `retryWebhookDelivery` cover the rest. These writes are not retried automatically.
 
 ## Map
 
@@ -237,7 +271,7 @@ try {
 ```
 
 - `NoApiKey`: no key was passed and `DATAFUEL_API_KEY` is empty. Thrown before any request.
-- `APIError`: the API refused the request. `.code` holds the API's error code (typed as `ErrorCode`). Subclasses: `Unauthorized`, `Forbidden`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`, `JobNotCancellable`, `AlreadyExists` (a create collided with an existing task or job; nothing was charged, send it again).
+- `APIError`: the API refused the request. `.code` holds the API's error code (typed as `ErrorCode`). Subclasses: `Unauthorized`, `Forbidden`, `InsufficientCredits`, `RateLimited`, `NotFound`, `InvalidAttributes`, `IdempotencyKeyReused`, `JobNotCancellable`, `ResultExpired` (the result is past its 30-day retention; on job and crawl entries, check `task.expired`), `AlreadyExists` (a create collided with an existing task or job; nothing was charged, send it again).
 - `ModuleUnavailable`, `EngineUnavailable`: an operator switched a task type or LLM engine off, e.g. during a provider outage. The reason is in the message, nothing is charged, and the SDK does not retry. `df.capabilities()` lists what is on.
 - `Unavailable` (503 `SERVICE_UNAVAILABLE`): a dependency is down for a moment. Unlike the two above, the SDK retries it.
 - `TaskFailed`, and `Blocked` when the target refused: the API accepted the task but the page could not be scraped. The error carries `.result`, so the envelope is still readable. Failed tasks are refunded.

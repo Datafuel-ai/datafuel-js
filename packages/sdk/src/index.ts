@@ -20,6 +20,7 @@
  * | A Google search | `search` | yes |
  * | Many prompts or searches | `runAskJob` / `runSearchJob` | yes |
  * | Earlier jobs, tasks, usage | `listJobs` / `listTasks` / `analytics` / `transactions` | yes |
+ * | Be told when a job or crawl ends | `webhook` option / `createWebhookEndpoint` | no |
  *
  * Start with plain `scrape`. Turn on `jsRendering` only when the page comes
  * back empty: it is slower and costs five times the credits on a Basic proxy.
@@ -46,6 +47,7 @@ export {
   NoApiKey,
   NotFound,
   RateLimited,
+  ResultExpired,
   TaskFailed,
   TransportError,
   Unauthorized,
@@ -70,11 +72,14 @@ export type {
   CrawlResult,
   CrawlResultsPage,
   CrawlStatus,
+  CreatedWebhookEndpoint,
+  CreateWebhookEndpointOptions,
   DuckAIModel,
   Engine,
   Format,
   Health,
   JobResults,
+  JobResultsPage,
   JobsPage,
   JobStatus,
   JobSummary,
@@ -105,4 +110,11 @@ export type {
   TransactionsOptions,
   TransactionsPage,
   TransactionSum,
+  UpdateWebhookEndpointOptions,
+  Webhook,
+  WebhookDeliveriesOptions,
+  WebhookDeliveriesPage,
+  WebhookDelivery,
+  WebhookEndpoint,
+  WebhookSecret,
 } from "./models.js";
